@@ -13,6 +13,7 @@ The primary differences are as follows:
 """
 
 import datetime
+import uuid
 
 
 class Conclusion:
@@ -38,6 +39,10 @@ class Fact(Conclusion):
 
     Attributes:
         fact_type (str): The type of Fact. Should correspond to one of the Gedcom X Known Fact Types.
+        fact_content (str or int): Any string or numerical content associated with the fact. For example,
+            in a "MaritalStatus" fact, the fact_content would be one of "Single", "Married", "Widowed", or
+            "Divorced". For "NumberOfMarriages" or "NumberOfChildren", this could be an integer, or a marker
+            like "!0" (if, say, the person is know to have had children, but the number is unknown).
         date (Date): The date or date range associated with the fact. Date ranges are used to
             denote precision (e.g. an event that took place in 1862 but for which we do not have a recorded
             month or year should have a Date that spans the range 1862-01-01 to 1862-12-31). Issues related
@@ -47,16 +52,17 @@ class Fact(Conclusion):
         locations (Location): The house number(s) (and possibly an alternate village) associated with this
             Fact took place.
     """
-    def __init__(self, fact_type=None, date=None, age=None, locations=None,
+    def __init__(self, fact_type=None, date=None, age=None, locations=None, fact_content=None,
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.fact_type = fact_type
+        self.fact_content = fact_content
         self.date = date
         self.age = age
         self.locations = locations
 
 
-class Name (Conclusion):
+class Name(Conclusion):
     """Defines a name of a person.
 
     Attributes:
@@ -76,13 +82,14 @@ class Name (Conclusion):
         pass
 
 
-class Person (Conclusion):
+class Person(Conclusion):
     """A description of a person.
 
     Attributes:
         names (list of Name): The names of the person.
         gender (str): The sex of the person.
         facts (list of Fact): Facts regarding the person.
+        identifier (uuid.uuid4): A unique internal identifier for this person.
     """
     def __init__(self, names=None, gender=None, facts=None,
                  sources=None, notes=None, confidence=None):
@@ -90,6 +97,7 @@ class Person (Conclusion):
         self.names = names
         self.gender = gender
         self.facts = facts
+        self.identifier = uuid.uuid4()
 
     def name_match_ll(self, query_name, date):
         pass
@@ -101,12 +109,15 @@ class Relationship (Conclusion):
     Attributes:
         relationship_type (str): The type of relationship. Must be either "spouse" or "parent-child".
         facts (list of Fact): Fact(s) relating to the relationship, generally a birth/baptism or marriage.
+        identifier (uuid.uuid4): A unique internal identifier for this relationship.
+
     """
     def __init__(self, relationship_type=None, facts=None,
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.relationship_type = relationship_type
         self.facts = facts
+        self.identifier = uuid.uuid4()
 
     def match_ll(self, query):
         pass
