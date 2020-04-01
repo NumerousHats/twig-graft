@@ -20,13 +20,25 @@ class Conclusion:
     """Abstract class for a basic genealogical data item.
 
     Attributes:
-        sources (list of Source): Sources related to this conclusion.
-        notes (list of str): Notes about this conclusion.
+        sources (list of Source): Source(s) related to this conclusion.
+        notes (list of str): Note(s) about this conclusion.
         confidence (str): A confidence level for this conclusion.
+
+    Args:
+        sources (Source or list of Source): Source(s) related to this conclusion.
+        notes (str or list of str): Note(s) about this conclusion.
     """
     def __init__(self, sources=None, notes=None, confidence=None):
-        self.sources = sources
-        self.notes = notes
+        if type(sources) is list:
+            self.sources = sources
+        else:
+            self.sources = [sources]
+
+        if type(notes) is list:
+            self.notes = notes
+        else:
+            self.notes = [notes]
+
         self.confidence = confidence
 
 
@@ -86,17 +98,30 @@ class Person(Conclusion):
     """A description of a person.
 
     Attributes:
-        names (list of Name): The names of the person.
+        names (list of Name): The name(s) of the person.
         gender (str): The sex of the person.
-        facts (list of Fact): Facts regarding the person.
+        facts (list of Fact): Fact(s) regarding the person.
         identifier (uuid.uuid4): A unique internal identifier for this person.
+
+    Args:
+        names (Name or list of Name): The name(s) of the person
+        facts (Fact or list of Fact): Fact(s) regarding the person.
     """
     def __init__(self, names=None, gender=None, facts=None,
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
-        self.names = names
+
+        if type(names) is list:
+            self.names = names
+        else:
+            self.names = [names]
+
+        if type(facts) is list:
+            self.facts = facts
+        else:
+            self.facts = [facts]
+
         self.gender = gender
-        self.facts = facts
         self.identifier = uuid.uuid4()
 
     def name_match_ll(self, query_name, date):
@@ -111,12 +136,20 @@ class Relationship (Conclusion):
         facts (list of Fact): Fact(s) relating to the relationship, generally a birth/baptism or marriage.
         identifier (uuid.uuid4): A unique internal identifier for this relationship.
 
+    Args:
+        facts (Fact or list of Fact): Fact(s) relating to the relationship, generally a birth/baptism
+            or marriage.
     """
     def __init__(self, relationship_type=None, facts=None,
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
+
+        if type(facts) is list:
+            self.facts = facts
+        else:
+            self.facts = [facts]
+
         self.relationship_type = relationship_type
-        self.facts = facts
         self.identifier = uuid.uuid4()
 
     def match_ll(self, query):
