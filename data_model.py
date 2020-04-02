@@ -25,8 +25,8 @@ class Conclusion:
         confidence (str): A confidence level for this conclusion.
 
     Args:
-        sources (Source or list of Source): Source(s) related to this conclusion.
-        notes (str or list of str): Note(s) about this conclusion.
+        sources (Source or list of Source or None): Source(s) related to this conclusion.
+        notes (str or list of str or None): Note(s) about this conclusion.
     """
     def __init__(self, sources=None, notes=None, confidence=None):
         if type(sources) is list or sources is None:
@@ -104,8 +104,8 @@ class Person(Conclusion):
         identifier (uuid.uuid4): A unique internal identifier for this person.
 
     Args:
-        names (Name or list of Name): The name(s) of the person
-        facts (Fact or list of Fact): Fact(s) regarding the person.
+        names (Name or list of Name or None): The name(s) of the person
+        facts (Fact or list of Fact or None): Fact(s) regarding the person.
     """
     def __init__(self, names=None, gender=None, facts=None,
                  sources=None, notes=None, confidence=None):
@@ -137,7 +137,7 @@ class Relationship (Conclusion):
         identifier (uuid.uuid4): A unique internal identifier for this relationship.
 
     Args:
-        facts (Fact or list of Fact): Fact(s) relating to the relationship, generally a birth/baptism
+        facts (Fact or list of Fact or None): Fact(s) relating to the relationship, generally a birth/baptism
             or marriage.
     """
     def __init__(self, relationship_type=None, facts=None,
@@ -225,12 +225,13 @@ class Duration:
 
     Attributes:
         duration  (datetime.timedelta): The duration of the interval.
-        precision (int): The precision of the duration in units of days. For example, should be 30
-            for intervals specified to within one month (e.g. a death record specifying that the age
-            of the deceased was "10 2/12 annorum").
+        precision (str): The precision of the duration. Must be one of ("year", "month", "week", "day").
+            For example, a death record specifying that the age of the deceased was "4 2/3 annorum"
+            should be given a precision of "month".
         confidence (str): Confidence level (accuracy) of the duration. Must be one of "normal" or "low".
-            Confidence is independent of precision: the priest may have indicated the age to within one
-            month, but sloppy penmanship makes it hard to tell if he wrote a "4" or a "9".
+            Confidence is independent of precision: the priest may have written "4 2/3 annorum" (i.e. a
+            precision of "month"), but if sloppy penmanship makes it hard to tell whether the number is
+            a "4" or a "9", then the confidence level is only accurate to within 5 years.
         year_day_ambiguity (bool): Indicates if there is a unit ambiguity between days and years.
             This happens for some death records where the pre-printed column heading for age is "dies
             vitae", but where a number was entered without units and there is a chance that the entered
@@ -240,11 +241,19 @@ class Duration:
     Args:
         duration_list (list of int): The duration of the interval expressed as a list of the form
             (years, months, weeks, days), where each entry is an integer.
+        precision (str or None): The precision of the duration (see Attributes above). If None, then
+            the precision will be inferred from the duration_list.
     """
     def __init__(self, duration_list=None, precision=None, confidence=None, year_day_ambiguity=None):
         self.duration = datetime.timedelta(weeks=duration_list[2],
                                            days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
-        self.precision = precision
+        if precision is None:
+            # find last non-zero element of reversed duration_list
+            index = next(x for x, val in enumerate(reversed(duration_list)) if val > 0)
+            self.precision = ["day", "week", "month", "year"][index]
+        else:
+            self.precision = precision
+
         self.confidence = confidence
         self.year_day_ambiguity = year_day_ambiguity
 
