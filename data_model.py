@@ -29,12 +29,12 @@ class Conclusion:
         notes (str or list of str): Note(s) about this conclusion.
     """
     def __init__(self, sources=None, notes=None, confidence=None):
-        if type(sources) is list:
+        if type(sources) is list or sources is None:
             self.sources = sources
         else:
             self.sources = [sources]
 
-        if type(notes) is list:
+        if type(notes) is list or notes is None:
             self.notes = notes
         else:
             self.notes = [notes]
@@ -111,12 +111,12 @@ class Person(Conclusion):
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
 
-        if type(names) is list:
+        if type(names) is list or names is None:
             self.names = names
         else:
             self.names = [names]
 
-        if type(facts) is list:
+        if type(facts) is list or facts is None:
             self.facts = facts
         else:
             self.facts = [facts]
@@ -144,7 +144,7 @@ class Relationship (Conclusion):
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
 
-        if type(facts) is list:
+        if type(facts) is list or facts is None:
             self.facts = facts
         else:
             self.facts = [facts]
