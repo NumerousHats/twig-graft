@@ -129,11 +129,10 @@ class Name(Conclusion):
         self.date = date
 
     def __repr__(self):
-        return " ".join([self.name_parts[x] for x in Name.__name_order
-                        if x in self.name_parts and self.name_parts[x] is not None])
-
-    def match_ll(self, query):
-        pass
+        output = [self.name_parts[x] for x in Name.__name_order
+                  if x in self.name_parts and self.name_parts[x] is not None]
+        output.append("({})".format(self.name_type))
+        return " ".join(output)
 
 
 class Person(Conclusion):
@@ -167,11 +166,11 @@ class Person(Conclusion):
         self.identifier = uuid.uuid4()
 
     def __repr__(self):
-        output = ['Person({0}'.format(self.identifier)]
+        output = ['Person({}'.format(self.identifier)]
         if self.gender is not None:
-            output.append('; gender="{0}"'.format(self.gender))
+            output.append(', gender="{0}"'.format(self.gender))
         if self.names is not None:
-            output.append('; {0}="{1}"'.format(self.names[0].name_type, str(self.names[0])))
+            output.append(', {}'.format(str(self.names[0])))
         output.append(')')
         return "".join(output)
 
@@ -195,8 +194,18 @@ class Person(Conclusion):
     def set_gender(self, gender):
         self.gender = gender
 
-    def name_match_ll(self, query_name, date):
-        pass
+    def summarize(self):
+        output = ["Person {}, gender={}\n".format(self.identifier, self.gender)]
+        if self.names is not None:
+            for name in self.names:
+                output.append("\t{}\n".format(str(name)))
+            output.append("\n")
+
+        # if self.facts is not None:
+        #     for fact in self.facts:
+        #         output.append("\t{}\n".format(str(fact)))
+
+        return "".join(output)
 
 
 class Relationship (Conclusion):
@@ -222,9 +231,6 @@ class Relationship (Conclusion):
 
         self.relationship_type = relationship_type
         self.identifier = uuid.uuid4()
-
-    def match_ll(self, query):
-        pass
 
 
 class Location:
@@ -295,9 +301,6 @@ class Date:
 
         self.confidence = confidence
 
-    def match_ll(self, query):
-        pass
-
 
 class Duration:
     """The duration of a time interval.
@@ -338,9 +341,6 @@ class Duration:
 
         self.confidence = confidence
         self.year_day_ambiguity = year_day_ambiguity
-
-    def match_ll(self, query):
-        pass
 
 
 class Source:
