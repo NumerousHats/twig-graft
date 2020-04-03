@@ -1,6 +1,6 @@
 """Module containing classes that define a genealogical data model.
 
-This model is loosely based on a Gedcom X conceptual model, but has greatly simplified and modified.
+This model is loosely based on the Gedcom X conceptual model, but has been greatly simplified and modified.
 The primary differences are as follows:
 
 - There are no Events, only Facts
@@ -41,6 +41,21 @@ class Conclusion:
 
         self.confidence = confidence
 
+    def add_source(self, source):
+        if self.sources is None:
+            self.sources = [source]
+        else:
+            self.sources.append(source)
+
+    def add_note(self, note):
+        if self.notes is None:
+            self.notes = [note]
+        else:
+            self.notes.append(note)
+
+    def set_confidence(self, confidence):
+        self.confidence = confidence
+
 
 class Fact(Conclusion):
     """A data item that is presumed to be true about a specific subject.
@@ -51,27 +66,48 @@ class Fact(Conclusion):
 
     Attributes:
         fact_type (str): The type of Fact. Should correspond to one of the Gedcom X Known Fact Types.
-        fact_content (str or int): Any string or numerical content associated with the fact. For example,
+        content (str or int): Any string or numerical content associated with the fact. For example,
             in a "MaritalStatus" fact, the fact_content would be one of "Single", "Married", "Widowed", or
             "Divorced". For "NumberOfMarriages" or "NumberOfChildren", this could be an integer, or a marker
-            like "!0" (if, say, the person is know to have had children, but the number is unknown).
+            like ">0" (if, say, the person is know to have had children, but the number is unknown).
         date (Date): The date or date range associated with the fact. Date ranges are used to
             denote precision (e.g. an event that took place in 1862 but for which we do not have a recorded
             month or year should have a Date that spans the range 1862-01-01 to 1862-12-31). Issues related
             to accuracy (e.g. handwriting issues, possible typos) should be indicated through
             Conclusion.confidence.
         age (Duration): The age of the individual at the time of the Fact.
-        locations (Location): The house number(s) (and possibly an alternate village) associated with this
-            Fact took place.
+        locations (list of Location): The Location(s) associated with this Fact took place (may be more
+            than one for a marriage).
     """
-    def __init__(self, fact_type=None, date=None, age=None, locations=None, fact_content=None,
+    def __init__(self, fact_type=None, date=None, age=None, locations=None, content=None,
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.fact_type = fact_type
-        self.fact_content = fact_content
+        self.content = content
         self.date = date
         self.age = age
-        self.locations = locations
+        if type(locations) is list or locations is None:
+            self.locations = locations
+        else:
+            self.locations = [locations]
+
+    def set_type(self, fact_type):
+        self.fact_type = fact_type
+
+    def set_content(self, content):
+        self.content = content
+
+    def set_date(self, date):
+        self.date = date
+
+    def set_age(self, age):
+        self.age = age
+
+    def add_location(self, location):
+        if self.locations is None:
+            self.locations = [location]
+        else:
+            self.locations.append(location)
 
 
 class Name(Conclusion):
@@ -123,6 +159,21 @@ class Person(Conclusion):
 
         self.gender = gender
         self.identifier = uuid.uuid4()
+
+    def add_fact(self, fact):
+        if self.facts is None:
+            self.facts = [fact]
+        else:
+            self.facts.append(fact)
+
+    def add_name(self, name):
+        if self.names is None:
+            self.names = [name]
+        else:
+            self.names.append(name)
+
+    def set_gender(self, gender):
+        self.gender = gender
 
     def name_match_ll(self, query_name, date):
         pass
@@ -192,10 +243,10 @@ class Date:
             then this is used to represent a specific day. If end_date is specified, this represents the
             start date of the interval. If the date range is to be open-ended, then it should be
             an empty string.
-        end_date (str): Should be an ISO-format date string (YYYY-MM-DD) representing the end date of
+        end_date (str or None): Should be an ISO-format date string (YYYY-MM-DD) representing the end date of
             the interval. If the date range is to be open-ended, then it should be passed
             an empty string.
-        confidence (str): The confidence level of the date.
+        confidence (str or None): The confidence level of the date.
     """
     def __init__(self, start_date, end_date=None, confidence=None):
         if start_date != "":
