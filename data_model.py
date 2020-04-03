@@ -116,15 +116,21 @@ class Name(Conclusion):
     Attributes:
         name_type (str): Name type, one of "birth", "married", "also_known_as", etc.
         name_parts (dict): Identified name parts. Keys are used to identify the name part (must be one
-            of "prefix", "suffix", "given", or "surname"), and the values are the actual names.
+            of "prefix", "suffix", "given", "surname", or "house"), and the values are the actual names.
         date (Date): The date range of applicability of the name.
     """
+    __name_order = ["prefix", "given", "surname", "suffix", "house"]
+
     def __init__(self, name_type=None, name_parts=None, date=None,
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.name_type = name_type
         self.name_parts = name_parts
         self.date = date
+
+    def __repr__(self):
+        return " ".join([self.name_parts[x] for x in Name.__name_order
+                        if x in self.name_parts and self.name_parts[x] is not None])
 
     def match_ll(self, query):
         pass
@@ -159,6 +165,20 @@ class Person(Conclusion):
 
         self.gender = gender
         self.identifier = uuid.uuid4()
+
+    def __repr__(self):
+        output = ['Person({0}'.format(self.identifier)]
+        if self.gender is not None:
+            output.append('; gender="{0}"'.format(self.gender))
+        if self.names is not None:
+            output.append('; {0}="{1}"'.format(self.names[0].name_type, str(self.names[0])))
+        output.append(')')
+        return "".join(output)
+
+    def __str__(self):
+        pass
+        # probably want something vaguely like
+        #       "Anna Bobak (nee Andrec), born 1801-02-03, married 1819-01-02, died/buried 1859-06-07"
 
     def add_fact(self, fact):
         if self.facts is None:
@@ -224,6 +244,17 @@ class Location:
         self.house_number = house_number
         self.alt_house_number = alt_house_number
         self.alt_village = alt_village
+
+    def __repr__(self):
+        output = ['Location(']
+        if self.house_number is not None:
+            output.append('{}'.format(self.house_number))
+        if self.alt_house_number is not None:
+            output.append('/{}'.format(self.alt_house_number))
+        if self.alt_village is not None:
+            output.append(' {}'.format(self.alt_village))
+        output.append(')')
+        return "".join(output)
 
 
 class Date:
@@ -312,7 +343,7 @@ class Duration:
         pass
 
 
-class Source(object):
+class Source:
     """A reference to a source description.
 
     Attributes:
@@ -329,3 +360,10 @@ class Source(object):
         self.page_number = page_number
         self.entry_number = entry_number
         self.image_file = image_file
+
+    def __repr__(self):
+        return '{}, volume {}, page {}, entry {} ({})'.format(self.repository,
+                                                              self.volume,
+                                                              self.page_number,
+                                                              self.entry_number,
+                                                              self.image_file)
