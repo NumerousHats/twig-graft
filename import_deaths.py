@@ -52,13 +52,20 @@ def import_deaths(filename):
                     if row["spouse"] or row["uxoratus"]:
                         decedent.add_name(Name(name_type="married",
                                                name_parts={"given": row["given_name"], "surname": surname}))
-                    elif age.duration < datetime.timedelta(days=365*13) and not age.year_day_ambiguity:
-                        # we'll assume 12-year-old or younger girls were not getting married...
+                    elif age.duration < datetime.timedelta(days=13) or \
+                            (age.duration < datetime.timedelta(days=365*13) and not age.year_day_ambiguity):
+                        # we'll assume 12-year-old and younger girls were not getting married...
                         decedent.add_name(Name(name_type="birth",
                                                name_parts={"given": row["given_name"], "surname": surname}))
                     else:
                         decedent.add_name(Name(name_type="unknown",
                                                name_parts={"given": row["given_name"], "surname": surname}))
+
+            if row["coelebs"]:
+                decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=0))
+
+            if row["uxoratus"]:
+                decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=">0"))
 
             if row["death_date"] is not None:
                 decedent.add_fact(Fact(fact_type="Death", date=Date(row["death_date"]),

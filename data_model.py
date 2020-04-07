@@ -91,6 +91,22 @@ class Fact(Conclusion):
         else:
             self.locations = [locations]
 
+    def __str__(self):
+        top_line = format(self.fact_type)
+        if self.content:
+            top_line = top_line + " = {}".format(self.content)
+        top_line = top_line + "\n"
+        output = [top_line]
+        if self.date:
+            output.append("\tDate: {}\n".format(str(self.date)))
+        if self.age:
+            output.append("\tAge: {}\n".format(str(self.age)))
+        if self.locations:
+            places = [str(loc) for loc in self.locations]
+            output.append("\tHouse number(s) {}".format(", ".join(places)))
+
+        return "".join(output)
+
     def set_type(self, fact_type):
         self.fact_type = fact_type
 
@@ -198,12 +214,11 @@ class Person(Conclusion):
         output = ["Person {}, gender={}\n".format(self.identifier, self.gender)]
         if self.names is not None:
             for name in self.names:
-                output.append("\t{}\n".format(str(name)))
-            output.append("\n")
+                output.append("{}\n".format(str(name)))
 
-        # if self.facts is not None:
-        #     for fact in self.facts:
-        #         output.append("\t{}\n".format(str(fact)))
+        if self.facts is not None:
+            for fact in self.facts:
+                output.append("{}\n".format(str(fact)))
 
         return "".join(output)
 
@@ -262,13 +277,24 @@ class Location:
         output.append(')')
         return "".join(output)
 
+    def __str__(self):
+        output = []
+        if self.house_number is not None:
+            output.append('{}'.format(self.house_number))
+        if self.alt_house_number is not None:
+            output.append('/{}'.format(self.alt_house_number))
+        if self.alt_village is not None:
+            output.append(' ({})'.format(self.alt_village))
+        return "".join(output)
+
+
 
 class Date:
     """A date or date range of a genealogical event/fact.
 
     Attributes:
-        date (datetime.date): A datetime.date object or a list of two datetime.date objects.
-            In the former case, it represents a specific day (to the stated
+        date (datetime.date or list of datetime.date): A datetime.date object or a list of two
+            datetime.date objects. In the former case, it represents a specific day (to the stated
             confidence level). In the latter case, it represents a date range, with the
             first date representing the start and the second, the end of the rage. To represent open-ended
             ranges, use datetime.date.min or datetime.date.max. A specific year or month should be represented
@@ -287,7 +313,7 @@ class Date:
     """
     def __init__(self, start_date, end_date=None, confidence=None):
         if start_date != "":
-            start = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+            start = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
         else:
             start = datetime.date.min
 
@@ -295,11 +321,33 @@ class Date:
             self.date = start
         else:
             if end_date != "":
-                self.date = [start, datetime.datetime.strptime(start_date, "%Y-%m-%d")]
+                self.date = [start, datetime.datetime.strptime(end_date, "%Y-%m-%d").date()]
             else:
                 self.date = [start, datetime.date.max]
 
         self.confidence = confidence
+
+    def __repr__(self):
+        if type(self.date) is list:
+            output = 'Date(start_date={}, end_date={}'.format(self.date[0].isoformat(),
+                                                              self.date[1].isoformat())
+        else:
+            output = 'Date(start_date={}'.format(self.date.isoformat())
+        if self.confidence:
+            output = output + ', confidence={})'.format(self.confidence)
+        else:
+            output = output + ')'
+        return output
+
+    def __str__(self):
+        if type(self.date) is list:
+            output = 'between {} and {}'.format(self.date[0].isoformat(), self.date[1].isoformat())
+        else:
+            output = self.date.isoformat()
+        if self.confidence:
+            output = output + '({} confidence)'.format(self.confidence)
+
+        return output
 
 
 class Duration:
@@ -309,6 +357,8 @@ class Duration:
     Fact.
 
     Attributes:
+        duration_list (list of int): The duration of the interval expressed as a list of the form
+            (years, months, weeks, days), where each entry is an integer.
         duration  (datetime.timedelta): The duration of the interval.
         precision (str): The precision of the duration. Must be one of ("year", "month", "week", "day").
             For example, a death record specifying that the age of the deceased was "4 2/3 annorum"
@@ -330,6 +380,7 @@ class Duration:
             the precision will be inferred from the duration_list.
     """
     def __init__(self, duration_list=None, precision=None, confidence=None, year_day_ambiguity=None):
+        self.duration_list = duration_list
         self.duration = datetime.timedelta(weeks=duration_list[2],
                                            days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
         if precision is None:
@@ -341,6 +392,19 @@ class Duration:
 
         self.confidence = confidence
         self.year_day_ambiguity = year_day_ambiguity
+
+    def __repr__(self):
+        return 'Duration(duration_list={}, precision={}, confidence={}, year_day_ambiguity={}'.format(
+            self.duration_list, self.precision, self.confidence, self.year_day_ambiguity)
+
+    def __str__(self):
+        time_names = ("years", "months", "weeks", "days")
+        output = []
+        for i in range(4):
+            if self.duration_list[i] == 0:
+                continue
+            output.append(str(self.duration_list[i]) + " " + time_names[i])
+        return ", ".join(output)
 
 
 class Source:
