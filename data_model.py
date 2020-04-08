@@ -120,11 +120,14 @@ class Fact(Conclusion):
 
     def __repr__(self):
         output = [json_element("fact_type", self.fact_type),
-                  json_element("content", self.content),
-                  # '"date": {}'.format(repr(self.date)),
-                  '"age": {}'.format(repr(self.age)),
-                  '"locations": [{}]'.format(", ".join([repr(x) for x in self.locations])),
-                  ]
+                  json_element("content", self.content)]
+        if self.date:
+            output.append('"date": {}'.format(repr(self.date)))
+        if self.age:
+            output.append('"age": {}'.format(repr(self.age)))
+        if self.locations:
+            output.append('"locations": [{}]'.format(", ".join([repr(x) for x in self.locations])))
+
         output.extend(super().__repr__())
         return "{{{}}}".format(", ".join(output))
 
@@ -184,9 +187,10 @@ class Name(Conclusion):
     def __repr__(self):
         parts = ['"{}": "{}"'.format(k, v) for k, v in self.name_parts.items()]
         output = [json_element("name_type", self.name_type),
-                  '"name_parts": {{{}}}'.format(", ".join(parts)),
-                  # TODO '"date": {}'.format(repr(self.date)),
-                  ]
+                  '"name_parts": {{{}}}'.format(", ".join(parts))]
+        if self.date:
+            output.append('"date": {}'.format(repr(self.date)))
+
         output.extend(super().__repr__())
         return "{{{}}}".format(", ".join(output))
 
@@ -229,10 +233,12 @@ class Person(Conclusion):
 
     def __repr__(self):
         output = [json_element("identifier", str(self.identifier)),
-                  json_element("gender", self.gender),
-                  '"names": {}'.format(", ".join([repr(x) for x in self.names])),
-                  '"facts": {}'.format(", ".join([repr(x) for x in self.facts])),
-                  ]
+                  json_element("gender", self.gender)]
+        if self.names:
+            output.append('"names": [{}]'.format(", ".join([repr(x) for x in self.names])))
+        if self.facts:
+            output.append('"facts": [{}]'.format(", ".join([repr(x) for x in self.facts])))
+
         output.extend(super().__repr__())
         return "{{{}}}".format(", ".join(output))
 
@@ -332,62 +338,57 @@ class Location:
 class Date:
     """A date or date range of a genealogical event/fact.
 
-    TODO:
-        Re-implement as interval, with exact date as a degenerate interval
+    A precise date is represented by the degenerate range with self.start == self.end.
+    A specific year or month should be represented as a range (e.g. the year 1898 should be
+    represented as the range 1898-01-01 to 1898-12-31). An open-ended range (i.e. where either start
+    or end is unspecified) then self.start or self.end should be datetime.date.min or
+    datetime.date.max, respectively.
 
     Attributes:
-        date (datetime.date or list of datetime.date): A datetime.date object or a list of two
-            datetime.date objects. In the former case, it represents a specific day (to the stated
-            confidence level). In the latter case, it represents a date range, with the
-            first date representing the start and the second, the end of the rage. To represent open-ended
-            ranges, use datetime.date.min or datetime.date.max. A specific year or month should be represented
-            as a range (e.g. the year 1898 should be represented as the range 1898-01-01 to 1898-12-31).
+        start (datetime.date): The start of a date rage.
+        end (datetime.date): The end of the date range
         confidence (str): The confidence level of the date.
 
     Args:
-        start_date (str): Should be an ISO-format date string (YYYY-MM-DD). If end_date is not specified,
+        start_val (str): Should be an ISO-format date string (YYYY-MM-DD). If end_date is not specified,
             then this is used to represent a specific day. If end_date is specified, this represents the
-            start date of the interval. If the date range is to be open-ended, then it should be
-            an empty string.
-        end_date (str or None): Should be an ISO-format date string (YYYY-MM-DD) representing the end date of
-            the interval. If the date range is to be open-ended, then it should be passed
+            start date of the interval. If the date range is to be unbounded from below, then it should be
+            passed an empty string.
+        end_val (str or None): Should be an ISO-format date string (YYYY-MM-DD) representing the end date of
+            the interval. If the date range is to be unbounded from above, then it should be passed
             an empty string.
         confidence (str or None): The confidence level of the date.
     """
-    def __init__(self, start_date, end_date=None, confidence=None):
-        if start_date != "":
-            start = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+    def __init__(self, start_val, end_val=None, confidence=None):
+        if start_val != "":
+            self.start = datetime.datetime.strptime(start_val, "%Y-%m-%d").date()
         else:
-            start = datetime.date.min
+            self.start = datetime.date.min
 
-        if end_date is None:
-            self.date = start
+        if end_val is None:
+            self.end = self.start
         else:
-            if end_date != "":
-                self.date = [start, datetime.datetime.strptime(end_date, "%Y-%m-%d").date()]
+            if end_val != "":
+                self.end = datetime.datetime.strptime(end_val, "%Y-%m-%d").date()
             else:
-                self.date = [start, datetime.date.max]
+                self.end = datetime.date.max
 
         self.confidence = confidence
 
     def __repr__(self):
-        # TODO need a JSON serialization
-        if type(self.date) is list:
-            output = 'Date(start_date={}, end_date={}'.format(self.date[0].isoformat(),
-                                                              self.date[1].isoformat())
-        else:
-            output = 'Date(start_date={}'.format(self.date.isoformat())
+        output = [json_element("start", self.start.isoformat()),
+                  json_element("end", self.end.isoformat())]
         if self.confidence:
-            output = output + ', confidence={})'.format(self.confidence)
-        else:
-            output = output + ')'
-        return output
+            output.append(json_element("confidence", self.confidence))
+
+        return '{{{}}}'.format(", ".join(output))
 
     def __str__(self):
-        if type(self.date) is list:
-            output = 'between {} and {}'.format(self.date[0].isoformat(), self.date[1].isoformat())
+        if self.start == self.end:
+            output = self.start.isoformat()
         else:
-            output = self.date.isoformat()
+            output = 'between {} and {}'.format(self.start.isoformat(), self.end.isoformat())
+
         if self.confidence:
             output = output + '({} confidence)'.format(self.confidence)
 

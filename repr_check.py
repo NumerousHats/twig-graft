@@ -20,11 +20,14 @@ def main():
     print(repr(name))
     print("\n")
 
-    fact = Fact(fact_type="death", date=Date("1854-01-02"), age=duration, locations=location)
-    print(repr(fact))
+    fact1 = Fact(fact_type="death", date=Date("1854-01-02"), age=duration, locations=location)
+    print(repr(fact1))
     print("\n")
 
-    person = Person(names=name, gender="f", facts=fact, sources=source, notes="No way.", confidence="uh huh")
+    fact2 = Fact(fact_type="birth", date=Date("1851-01-02", "1852-01-02"), locations=location)
+
+    person = Person(names=name, gender="f", facts=[fact1, fact2], sources=source,
+                    notes="No way.", confidence="uh huh")
     print(repr(person))
 
 
