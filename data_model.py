@@ -1,19 +1,34 @@
 """Module containing classes that define a genealogical data model.
 
-This model is loosely based on the Gedcom X conceptual model, but has been greatly simplified and modified.
+This model is inspired by the Gedcom X conceptual model, but is greatly simplified and modified.
 The primary differences are as follows:
 
-- There are no Events, only Facts
-- The Date model has been modified
-- The Name class has been grossly simplified
-- The Source model has been modified
-- Locations are house-number-centric
-- Agents are not implemented
+- There are no Events, only Facts.
+- The Date model has been modified.
+- There is a separate class for Durations (e.g. the age of a Person).
+- The Name class has been grossly simplified.
+- SourceDescription has been grossly simplified and renamed Source.
+- PlaceDescription has been grossly simplified, made house-number-centric, and renamed Location.
+- Agent, Group, and Document are not implemented.
+
+__str__ methods return a reasonably terse human-readable depiction of the object.
+__repr__ methods return the full object serialized as JSON.
+Some classes also have a summarize() method that provides a more verbose human-readable summary.
 
 """
 
 import datetime
 import uuid
+
+
+def json_element(name, value):
+    if type(value) is str:
+        output = '"{}": "{}"'.format(name, value)
+    elif value is None:
+        output = '"{}": "None"'.format(name)
+    else:
+        output = '"{}": {}'.format(name, value)
+    return output
 
 
 class Conclusion:
@@ -40,6 +55,18 @@ class Conclusion:
             self.notes = [notes]
 
         self.confidence = confidence
+
+    def __repr__(self):
+        output = []
+
+        if self.sources:
+            output.append('"sources": [{}]'.format(", ".join([repr(x) for x in self.sources])))
+        if self.notes:
+            output.append('"notes": [{}]'.format(", ".join(['"{}"'.format(x) for x in self.notes])))
+        if self.confidence:
+            output.append(json_element("confidence", self.confidence))
+
+        return output
 
     def add_source(self, source):
         if self.sources is None:
@@ -90,6 +117,16 @@ class Fact(Conclusion):
             self.locations = locations
         else:
             self.locations = [locations]
+
+    def __repr__(self):
+        output = [json_element("fact_type", self.fact_type),
+                  json_element("content", self.content),
+                  # '"date": {}'.format(repr(self.date)),
+                  '"age": {}'.format(repr(self.age)),
+                  '"locations": [{}]'.format(", ".join([repr(x) for x in self.locations])),
+                  ]
+        output.extend(super().__repr__())
+        return "{{{}}}".format(", ".join(output))
 
     def __str__(self):
         top_line = format(self.fact_type)
@@ -145,6 +182,15 @@ class Name(Conclusion):
         self.date = date
 
     def __repr__(self):
+        parts = ['"{}": "{}"'.format(k, v) for k, v in self.name_parts.items()]
+        output = [json_element("name_type", self.name_type),
+                  '"name_parts": {{{}}}'.format(", ".join(parts)),
+                  # TODO '"date": {}'.format(repr(self.date)),
+                  ]
+        output.extend(super().__repr__())
+        return "{{{}}}".format(", ".join(output))
+
+    def __str__(self):
         output = [self.name_parts[x] for x in Name.__name_order
                   if x in self.name_parts and self.name_parts[x] is not None]
         output.append("({})".format(self.name_type))
@@ -182,13 +228,13 @@ class Person(Conclusion):
         self.identifier = uuid.uuid4()
 
     def __repr__(self):
-        output = ['Person({}'.format(self.identifier)]
-        if self.gender is not None:
-            output.append(', gender="{0}"'.format(self.gender))
-        if self.names is not None:
-            output.append(', {}'.format(str(self.names[0])))
-        output.append(')')
-        return "".join(output)
+        output = [json_element("identifier", str(self.identifier)),
+                  json_element("gender", self.gender),
+                  '"names": {}'.format(", ".join([repr(x) for x in self.names])),
+                  '"facts": {}'.format(", ".join([repr(x) for x in self.facts])),
+                  ]
+        output.extend(super().__repr__())
+        return "{{{}}}".format(", ".join(output))
 
     def __str__(self):
         pass
@@ -267,15 +313,10 @@ class Location:
         self.alt_village = alt_village
 
     def __repr__(self):
-        output = ['Location(']
-        if self.house_number is not None:
-            output.append('{}'.format(self.house_number))
-        if self.alt_house_number is not None:
-            output.append('/{}'.format(self.alt_house_number))
-        if self.alt_village is not None:
-            output.append(' {}'.format(self.alt_village))
-        output.append(')')
-        return "".join(output)
+        output = [json_element("house_number", self.house_number),
+                  json_element("alt_house_number", self.alt_house_number),
+                  json_element("alt_village", self.alt_village)]
+        return "{{{}}}".format(", ".join(output))
 
     def __str__(self):
         output = []
@@ -288,9 +329,11 @@ class Location:
         return "".join(output)
 
 
-
 class Date:
     """A date or date range of a genealogical event/fact.
+
+    TODO:
+        Re-implement as interval, with exact date as a degenerate interval
 
     Attributes:
         date (datetime.date or list of datetime.date): A datetime.date object or a list of two
@@ -328,6 +371,7 @@ class Date:
         self.confidence = confidence
 
     def __repr__(self):
+        # TODO need a JSON serialization
         if type(self.date) is list:
             output = 'Date(start_date={}, end_date={}'.format(self.date[0].isoformat(),
                                                               self.date[1].isoformat())
@@ -348,6 +392,15 @@ class Date:
             output = output + '({} confidence)'.format(self.confidence)
 
         return output
+
+    def before(self, comp_date, strict=False):
+        pass
+
+    def after(self, comp_date, strict=False):
+        pass
+
+    def same(self, comp_date):
+        pass
 
 
 class Duration:
@@ -379,7 +432,7 @@ class Duration:
         precision (str or None): The precision of the duration (see Attributes above). If None, then
             the precision will be inferred from the duration_list.
     """
-    def __init__(self, duration_list=None, precision=None, confidence=None, year_day_ambiguity=None):
+    def __init__(self, duration_list=None, precision=None, confidence="normal", year_day_ambiguity=None):
         self.duration_list = duration_list
         self.duration = datetime.timedelta(weeks=duration_list[2],
                                            days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
@@ -394,8 +447,12 @@ class Duration:
         self.year_day_ambiguity = year_day_ambiguity
 
     def __repr__(self):
-        return 'Duration(duration_list={}, precision={}, confidence={}, year_day_ambiguity={}'.format(
-            self.duration_list, self.precision, self.confidence, self.year_day_ambiguity)
+        output = ['"duration": {}'.format(self.duration_list),
+                  json_element("confidence", self.confidence),
+                  json_element("precision", self.precision),
+                  json_element("year_day_ambiguity", str(self.year_day_ambiguity))]
+
+        return '{{{}}}'.format(", ".join(output))
 
     def __str__(self):
         time_names = ("years", "months", "weeks", "days")
@@ -426,6 +483,15 @@ class Source:
         self.image_file = image_file
 
     def __repr__(self):
+        output = [json_element("repository", self.repository),
+                  json_element("volume", self.volume),
+                  json_element("page_number", self.page_number),
+                  json_element("entry_number", self.entry_number),
+                  json_element("image_file", self.image_file)]
+
+        return "{{{}}}".format(", ".join(output))
+
+    def __str__(self):
         return '{}, volume {}, page {}, entry {} ({})'.format(self.repository,
                                                               self.volume,
                                                               self.page_number,
