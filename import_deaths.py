@@ -1,6 +1,5 @@
 import logging
 import csv
-import datetime
 
 from data_model import *
 
@@ -75,4 +74,34 @@ def import_deaths(filename):
                 decedent.add_fact(Fact(fact_type="Burial", date=Date(row["burial_date"]),
                                        age=age, locations=location, sources=source))
 
-            print(decedent.summarize())
+            print('"decedent": ' + repr(decedent))
+
+            if row["father"]:
+                if row["father"] == "[illegitimate]":
+                    decedent.add_fact(Fact(fact_type="IllegitimateBirth", sources=source))
+                else:
+                    father = Person(gender="m",
+                                    names=Name(name_type="birth", name_parts={"given": row["father"],
+                                                                              "surname": surname}),
+                                    sources=source)
+                    father_rel = Relationship(father.identifier, decedent.identifier, "parent-child", sources=source)
+
+                    if row["father_deceased"]:
+                        father.add_fact(Fact(fact_type="Death", date=Date("", row["death_date"])))
+
+            if row["mother"]:
+                mother = Person(gender="f",
+                                names=Name(name_type="married", name_parts={"given": row["mother"],
+                                                                            "surname": surname}),
+                                sources=source)
+                mother_rel = Relationship(mother.identifier, decedent.identifier, "parent-child", sources=source)
+
+                if row["mother_deceased"]:
+                    mother.add_fact(Fact(fact_type="Death", date=Date("", row["death_date"])))
+
+            if row["spouse"]:
+                if decedent.gender == "m":
+                    # TODO need to determine if surname is married or maiden by comparing to decedent's surname?
+                    spouse = Person(gender="f", names=Name())
+                else:
+                    spouse = Person(gender="m", names=Name())

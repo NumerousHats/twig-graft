@@ -1,7 +1,8 @@
 """Module containing classes that define a genealogical data model.
 
-This model is inspired by the Gedcom X conceptual model, but is greatly simplified and modified.
-The primary differences are as follows:
+This model is inspired by the Gedcom X conceptual model, but is much simpler and is specific to the particular
+task at hand. It is not meant to be a general-purpose genealogical data model. Among the many differences relative
+to Gedcom X are the following:
 
 - There are no Events, only Facts.
 - The Date model has been modified.
@@ -12,7 +13,10 @@ The primary differences are as follows:
 - Agent, Group, and Document are not implemented.
 
 __str__ methods return a reasonably terse human-readable depiction of the object.
-__repr__ methods return the full object serialized as JSON.
+
+__repr__ methods return the full object serialized as JSON (with the exception of Conclusion, which should
+    be instantiated only through its subclasses, and for which __repr__ returns a list of JSON elements).
+
 Some classes also have a summarize() method that provides a more verbose human-readable summary.
 
 """
@@ -87,9 +91,9 @@ class Conclusion:
 class Fact(Conclusion):
     """A data item that is presumed to be true about a specific subject.
 
-    Subjects are typically a person or relationship. In contrast to the full Gedcom X, there is no
+    Subjects can be a person or a relationship. In contrast to the full Gedcom X, there is no
     distinction between Facts and Events. For occurrences that involve more than one Person (e.g. marriages),
-
+    the Fact should be attached to the Relationship object.
 
     Attributes:
         fact_type (str): The type of Fact. Should correspond to one of the Gedcom X Known Fact Types.
@@ -208,7 +212,7 @@ class Person(Conclusion):
         names (list of Name): The name(s) of the person.
         gender (str): The sex of the person.
         facts (list of Fact): Fact(s) regarding the person.
-        identifier (uuid.uuid4): A unique internal identifier for this person.
+        identifier (str): A unique internal identifier for this person.
 
     Args:
         names (Name or list of Name or None): The name(s) of the person
@@ -229,10 +233,10 @@ class Person(Conclusion):
             self.facts = [facts]
 
         self.gender = gender
-        self.identifier = uuid.uuid4()
+        self.identifier = str(uuid.uuid4())
 
     def __repr__(self):
-        output = [json_element("identifier", str(self.identifier)),
+        output = [json_element("identifier", self.identifier),
                   json_element("gender", self.gender)]
         if self.names:
             output.append('"names": [{}]'.format(", ".join([repr(x) for x in self.names])))
@@ -244,7 +248,7 @@ class Person(Conclusion):
 
     def __str__(self):
         pass
-        # probably want something vaguely like
+        # TODO maybe something vaguely like
         #       "Anna Bobak (nee Andrec), born 1801-02-03, married 1819-01-02, died/buried 1859-06-07"
 
     def add_fact(self, fact):
@@ -275,29 +279,49 @@ class Person(Conclusion):
         return "".join(output)
 
 
-class Relationship (Conclusion):
-    """Attributes associated with a relationship between two Persons.
+class Relationship(Conclusion):
+    """A description of a relationship between two Persons.
 
     Attributes:
+        from_id (str): Internal identifier of the "source" Person of the relationship. For a "parent-child"
+            relationship_type, this is the parent. For a "spouse" relationship_type, this is the husband.
+        to_id (str): Internal identifier of the "destination" Person of the relationship. For a "parent-child"
+            relationship_type, this is the child. For a "spouse" relationship_type, this is the wife.
         relationship_type (str): The type of relationship. Must be either "spouse" or "parent-child".
         facts (list of Fact): Fact(s) relating to the relationship, generally a birth/baptism or marriage.
-        identifier (uuid.uuid4): A unique internal identifier for this relationship.
+        identifier (str): A unique internal identifier for this relationship.
 
     Args:
         facts (Fact or list of Fact or None): Fact(s) relating to the relationship, generally a birth/baptism
             or marriage.
     """
-    def __init__(self, relationship_type=None, facts=None,
+    def __init__(self, from_id, to_id, relationship_type, facts=None,
                  sources=None, notes=None, confidence=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
+
+        if relationship_type != "spouse" and relationship_type != "parent-child":
+            raise ValueError("relationship_type must be 'spouse' or 'parent-child'")
 
         if type(facts) is list or facts is None:
             self.facts = facts
         else:
             self.facts = [facts]
 
+        self.from_id = from_id
+        self.to_id = to_id
         self.relationship_type = relationship_type
-        self.identifier = uuid.uuid4()
+        self.identifier = str(uuid.uuid4())
+
+    def __repr__(self):
+        output = [json_element("identifier", self.identifier),
+                  json_element("from_id", self.from_id),
+                  json_element("to_id", self.to_id),
+                  json_element("relationship_type", self.relationship_type)]
+        if self.facts:
+            output.append('"facts": [{}]'.format(", ".join([repr(x) for x in self.facts])))
+
+        output.extend(super().__repr__())
+        return "{{{}}}".format(", ".join(output))
 
 
 class Location:
@@ -340,9 +364,8 @@ class Date:
 
     A precise date is represented by the degenerate range with self.start == self.end.
     A specific year or month should be represented as a range (e.g. the year 1898 should be
-    represented as the range 1898-01-01 to 1898-12-31). An open-ended range (i.e. where either start
-    or end is unspecified) then self.start or self.end should be datetime.date.min or
-    datetime.date.max, respectively.
+    represented as the range 1898-01-01 to 1898-12-31). For an open-ended range (i.e. where either start
+    or end is unspecified), set self.start or self.end to datetime.date.min or datetime.date.max, respectively.
 
     Attributes:
         start (datetime.date): The start of a date rage.
@@ -424,7 +447,7 @@ class Duration:
         year_day_ambiguity (bool): Indicates if there is a unit ambiguity between days and years.
             This happens for some death records where the pre-printed column heading for age is "dies
             vitae", but where a number was entered without units and there is a chance that the entered
-            number represents years instead of days (or vice versa). Precision should correspond to the
+            number represents years instead of days. Precision should correspond to the
             most likely unit based on other evidence in the record.
 
     Args:
