@@ -1,5 +1,7 @@
 import logging
 import logging.config
+import csv
+
 import import_deaths
 
 
@@ -22,7 +24,18 @@ def main():
     logging.config.dictConfig(logging_config)
     logger = logging.getLogger("twig_graft")
 
-    import_deaths.import_deaths('test.csv')
+    thesaurus = {}
+    with open('standardized_surnames.csv') as csv_file:
+        reader = csv.DictReader(csv_file, delimiter=',', quotechar='"')
+        for row in reader:
+            thesaurus[row["raw"]] = row["standardized"]
+
+    with open('standardized_given.csv') as csv_file:
+        reader = csv.DictReader(csv_file, delimiter=',', quotechar='"')
+        for row in reader:
+            thesaurus[row["raw"]] = row["standardized"]
+
+    import_deaths.import_deaths('test.csv', thesaurus)
 
 
 if __name__ == "__main__":

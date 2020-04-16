@@ -23,6 +23,7 @@ Some classes also have a summarize() method that provides a more verbose human-r
 
 import datetime
 import uuid
+import logging
 
 
 def json_element(name, value):
@@ -176,17 +177,36 @@ class Name(Conclusion):
     Attributes:
         name_type (str): Name type, one of "birth", "married", "also_known_as", etc.
         name_parts (dict): Identified name parts. Keys are used to identify the name part (must be one
-            of "prefix", "suffix", "given", "surname", or "house"), and the values are the actual names.
+            of "prefix", "suffix", "given", "surname", or "house"), and the values are the actual names as
+            found in the record.
+        standard_name_parts (dict): Identified name parts that have been standardized against a thesaurus.
+            Keys are used to identify the name part (must be one of "prefix", "suffix", "given", "surname",
+            or "house"), and the values are the actual standardized names.
         date (Date): The date range of applicability of the name.
+
+    Args:
+        thesaurus (dict): The thesaurus to be used to standardize name parts. The keys consist of non-standard forms,
+            and the values are the standardized from.
     """
     __name_order = ["prefix", "given", "surname", "suffix", "house"]
 
     def __init__(self, name_type=None, name_parts=None, date=None,
-                 sources=None, notes=None, confidence=None):
+                 sources=None, notes=None, confidence=None, thesaurus=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.name_type = name_type
         self.name_parts = name_parts
         self.date = date
+        self.standard_name_parts = None
+
+        if thesaurus:
+            logger = logging.getLogger("twig_graft")
+            self.standard_name_parts = {}
+            for key in self.name_parts.keys():
+                try:
+                    self.standard_name_parts[key] = thesaurus[self.name_parts[key]]
+                except KeyError:
+                    self.standard_name_parts[key] = self.name_parts[key]
+                    logger.info("key miss while standardizing '{}'".format(name_parts[key]))
 
     def __repr__(self):
         parts = ['"{}": "{}"'.format(k, v) for k, v in self.name_parts.items()]
@@ -262,9 +282,6 @@ class Person(Conclusion):
             self.names = [name]
         else:
             self.names.append(name)
-
-    def set_gender(self, gender):
-        self.gender = gender
 
     def summarize(self):
         output = ["Person {}, gender={}\n".format(self.identifier, self.gender)]
