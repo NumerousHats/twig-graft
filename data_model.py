@@ -212,7 +212,10 @@ class Name(Conclusion):
     def __repr__(self):
         parts = ['"{}": "{}"'.format(k, v) for k, v in self.name_parts.items()]
         output = [json_element("name_type", self.name_type),
-                  '"name_parts": {{{}}}'.format(", ".join(parts))]
+                  '"name_parts": {{{}}}'.format(", ".join(parts)),
+                  json_element("standard_surname", self.standard_surname),
+                  json_element("standard_given", self.standard_given),
+                  ]
         if self.date:
             output.append('"date": {}'.format(repr(self.date)))
 

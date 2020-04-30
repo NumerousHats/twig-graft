@@ -11,9 +11,6 @@ class ParseError(Exception):
 
 
 def parse_name(name_string):
-    main_name = None
-    sub_name = None
-
     match = re.match(r'(\S+)(?:\s+\((\S+)\))?', name_string)
     if match:
         matches = match.groups()
@@ -27,6 +24,7 @@ def parse_name(name_string):
         raise ParseError("couldn't parse name {}".format(name_string))
 
     return main_name, sub_name
+
 
 def parse_date(date_string, year):
     match = re.search(r'\d{4}-(\d{2})-(.{2,3})', date_string)
@@ -47,6 +45,7 @@ def parse_date(date_string, year):
 
     return date
 
+
 def import_deaths(filename, thesaurus):
     logger = logging.getLogger("twig_graft")
     logger.debug("importing {}".format(filename))
@@ -59,8 +58,6 @@ def import_deaths(filename, thesaurus):
             else:
                 # if there is no surname, assume it's an empty or nonstandard record
                 continue
-
-            print(row)
 
             # pull out notes and low confidence indicators
             notes = {}
