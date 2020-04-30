@@ -11,11 +11,14 @@ to Gedcom X are the following:
 - SourceDescription has been grossly simplified and renamed Source.
 - PlaceDescription has been grossly simplified, made house-number-centric, and renamed Location.
 - Agent, Group, and Document are not implemented.
+- Added Statement class, which is like a Conclusion but without a source.
+- Date, Location, Duration, and Conclusion are subclasses of Statement.
 
 __str__ methods return a reasonably terse human-readable depiction of the object.
 
-__repr__ methods return the full object serialized as JSON (with the exception of Conclusion, which should
-    be instantiated only through its subclasses, and for which __repr__ returns a list of JSON elements).
+__repr__ methods return the full object serialized as JSON (with the exception of Statement and Conclusion,
+    which should be instantiated only through their subclasses, and for which __repr__ returns a list of
+    JSON elements).
 
 Some classes also have a summarize() method that provides a more verbose human-readable summary.
 
@@ -36,7 +39,43 @@ def json_element(name, value):
     return output
 
 
-class Conclusion:
+class Statement:
+    """Abstract class for a statement about something.
+
+    Attributes:
+        notes (list of str): Note(s) about this statement.
+        confidence (str): A confidence level for this statement. Should be either "normal" or "low".
+
+    Args:
+        notes (str or list of str or None): Note(s) about this conclusion.
+    """
+
+    def __init__(self, notes=None, confidence="normal"):
+        if type(notes) is list or notes is None:
+            self.notes = notes
+        else:
+            self.notes = [notes]
+
+        self.confidence = confidence
+
+    def __repr__(self):
+        output = []
+
+        if self.notes:
+            output.append('"notes": [{}]'.format(", ".join(['"{}"'.format(x) for x in self.notes])))
+        if self.confidence:
+            output.append(json_element("confidence", self.confidence))
+
+        return output
+
+    def add_note(self, note):
+        if self.notes is None:
+            self.notes = [note]
+        else:
+            self.notes.append(note)
+
+
+class Conclusion(Statement):
     """Abstract class for a basic genealogical data item.
 
     Attributes:
@@ -49,27 +88,18 @@ class Conclusion:
         notes (str or list of str or None): Note(s) about this conclusion.
     """
     def __init__(self, sources=None, notes=None, confidence="normal"):
+        super().__init__(notes=notes, confidence=confidence)
         if type(sources) is list or sources is None:
             self.sources = sources
         else:
             self.sources = [sources]
-
-        if type(notes) is list or notes is None:
-            self.notes = notes
-        else:
-            self.notes = [notes]
-
-        self.confidence = confidence
 
     def __repr__(self):
         output = []
 
         if self.sources:
             output.append('"sources": [{}]'.format(", ".join([repr(x) for x in self.sources])))
-        if self.notes:
-            output.append('"notes": [{}]'.format(", ".join(['"{}"'.format(x) for x in self.notes])))
-        if self.confidence:
-            output.append(json_element("confidence", self.confidence))
+        output.extend(super().__repr__())
 
         return output
 
@@ -78,12 +108,6 @@ class Conclusion:
             self.sources = [source]
         else:
             self.sources.append(source)
-
-    def add_note(self, note):
-        if self.notes is None:
-            self.notes = [note]
-        else:
-            self.notes.append(note)
 
 
 class Fact(Conclusion):
@@ -345,7 +369,7 @@ class Relationship(Conclusion):
         return "{{{}}}".format(", ".join(output))
 
 
-class Location:
+class Location(Statement):
     """A location specified by house number(s) and possible alternate village.
 
     Attributes:
@@ -358,7 +382,8 @@ class Location:
             in the metrical book entry. Otherwise, it should be None, and is assumed to be the village
             where the parish is located.
     """
-    def __init__(self, house_number=None, alt_house_number=None, alt_village=None):
+    def __init__(self, house_number=None, alt_house_number=None, alt_village=None, notes=None, confidence="normal"):
+        super().__init__(notes=notes, confidence=confidence)
         self.house_number = house_number
         self.alt_house_number = alt_house_number
         self.alt_village = alt_village
@@ -367,6 +392,7 @@ class Location:
         output = [json_element("house_number", self.house_number),
                   json_element("alt_house_number", self.alt_house_number),
                   json_element("alt_village", self.alt_village)]
+        output.extend(super().__repr__())
         return "{{{}}}".format(", ".join(output))
 
     def __str__(self):
@@ -380,7 +406,7 @@ class Location:
         return "".join(output)
 
 
-class Date:
+class Date(Statement):
     """A date or date range of a genealogical event/fact.
 
     A precise date is represented by the degenerate range with self.start == self.end.
@@ -403,7 +429,8 @@ class Date:
             then it should be passed an empty string.
         confidence (str or None): The confidence level of the date.
     """
-    def __init__(self, start_val, end_val=None, confidence="normal"):
+    def __init__(self, start_val, end_val=None, notes=None, confidence="normal"):
+        super().__init__(notes=notes, confidence=confidence)
         if type(start_val) is datetime.date:
             self.start = start_val
         else:
@@ -430,6 +457,7 @@ class Date:
                   json_element("end", self.end.isoformat())]
         if self.confidence:
             output.append(json_element("confidence", self.confidence))
+        output.extend(super().__repr__())
 
         return '{{{}}}'.format(", ".join(output))
 
@@ -460,7 +488,7 @@ class Date:
         pass
 
 
-class Duration:
+class Duration(Statement):
     """The duration of a time interval.
 
     Objects of this class are typically used to represent the age of Person at the time of a particular
@@ -476,7 +504,7 @@ class Duration:
         confidence (str): Confidence level (accuracy) of the duration. Must be one of "normal" or "low".
             Confidence is independent of precision: the priest may have written "4 2/3 annorum" (i.e. a
             precision of "month"), but if sloppy penmanship makes it hard to tell whether the number is
-            a "4" or a "9", then the confidence level is only accurate to within 5 years.
+            a "4" or a "9", then the confidence level is only to within 5 years.
         year_day_ambiguity (bool): Indicates if there is a unit ambiguity between days and years.
             This happens for some death records where the pre-printed column heading for age is "dies
             vitae", but where a number was entered without units and there is a chance that the entered
@@ -489,7 +517,9 @@ class Duration:
         precision (str or None): The precision of the duration (see Attributes above). If None, then
             the precision will be inferred from the duration_list.
     """
-    def __init__(self, duration_list=None, precision=None, confidence="normal", year_day_ambiguity=None):
+    def __init__(self, duration_list=None, precision=None, notes=None, confidence="normal",
+                 year_day_ambiguity=None):
+        super().__init__(notes=notes, confidence=confidence)
         self.duration_list = duration_list
         self.duration = datetime.timedelta(weeks=duration_list[2],
                                            days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
@@ -511,6 +541,7 @@ class Duration:
                   json_element("confidence", self.confidence),
                   json_element("precision", self.precision),
                   json_element("year_day_ambiguity", str(self.year_day_ambiguity))]
+        output.extend(super().__repr__())
 
         return '{{{}}}'.format(", ".join(output))
 
