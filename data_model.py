@@ -42,13 +42,13 @@ class Conclusion:
     Attributes:
         sources (list of Source): Source(s) related to this conclusion.
         notes (list of str): Note(s) about this conclusion.
-        confidence (str): A confidence level for this conclusion.
+        confidence (str): A confidence level for this conclusion. Should be either "normal" or "low".
 
     Args:
         sources (Source or list of Source or None): Source(s) related to this conclusion.
         notes (str or list of str or None): Note(s) about this conclusion.
     """
-    def __init__(self, sources=None, notes=None, confidence=None):
+    def __init__(self, sources=None, notes=None, confidence="normal"):
         if type(sources) is list or sources is None:
             self.sources = sources
         else:
@@ -85,9 +85,6 @@ class Conclusion:
         else:
             self.notes.append(note)
 
-    def set_confidence(self, confidence):
-        self.confidence = confidence
-
 
 class Fact(Conclusion):
     """A data item that is presumed to be true about a specific subject.
@@ -112,7 +109,7 @@ class Fact(Conclusion):
             than one for a marriage).
     """
     def __init__(self, fact_type=None, date=None, age=None, locations=None, content=None,
-                 sources=None, notes=None, confidence=None):
+                 sources=None, notes=None, confidence="normal"):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.fact_type = fact_type
         self.content = content
@@ -179,9 +176,8 @@ class Name(Conclusion):
         name_parts (dict): Identified name parts. Keys are used to identify the name part (must be one
             of "prefix", "suffix", "given", "surname", or "house"), and the values are the actual names as
             found in the record.
-        standard_name_parts (dict): Identified name parts that have been standardized against a thesaurus.
-            Keys are used to identify the name part (must be one of "prefix", "suffix", "given", "surname",
-            or "house"), and the values are the actual standardized names.
+        standard_given (str): Given name that has been standardized against a thesaurus.
+        standard_surname (str): Surname that has been standardized against a thesaurus.
         date (Date): The date range of applicability of the name.
 
     Args:
@@ -191,22 +187,27 @@ class Name(Conclusion):
     __name_order = ["prefix", "given", "surname", "suffix", "house"]
 
     def __init__(self, name_type=None, name_parts=None, date=None,
-                 sources=None, notes=None, confidence=None, thesaurus=None):
+                 sources=None, notes=None, confidence="normal", thesaurus=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.name_type = name_type
         self.name_parts = name_parts
         self.date = date
-        self.standard_name_parts = None
+        self.standard_given = None
+        self.standard_surname = None
 
         if thesaurus:
             logger = logging.getLogger("twig_graft")
-            self.standard_name_parts = {}
-            for key in self.name_parts.keys():
+            if "given" in self.name_parts.keys():
                 try:
-                    self.standard_name_parts[key] = thesaurus[self.name_parts[key]]
+                    self.standard_given = thesaurus[self.name_parts["given"]]
                 except KeyError:
-                    self.standard_name_parts[key] = self.name_parts[key]
-                    logger.info("key miss while standardizing '{}'".format(name_parts[key]))
+                    logger.info("key miss while standardizing given name '{}'".format(self.name_parts["given"]))
+
+            if "surname" in self.name_parts.keys():
+                try:
+                    self.standard_surname = thesaurus[self.name_parts["surname"]]
+                except KeyError:
+                    logger.info("key miss while standardizing surname '{}'".format(self.name_parts["surname"]))
 
     def __repr__(self):
         parts = ['"{}": "{}"'.format(k, v) for k, v in self.name_parts.items()]
@@ -239,7 +240,7 @@ class Person(Conclusion):
         facts (Fact or list of Fact or None): Fact(s) regarding the person.
     """
     def __init__(self, names=None, gender=None, facts=None,
-                 sources=None, notes=None, confidence=None):
+                 sources=None, notes=None, confidence="normal"):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
 
         if type(names) is list or names is None:
@@ -313,7 +314,7 @@ class Relationship(Conclusion):
             or marriage.
     """
     def __init__(self, from_id, to_id, relationship_type, facts=None,
-                 sources=None, notes=None, confidence=None):
+                 sources=None, notes=None, confidence="normal"):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
 
         if relationship_type != "spouse" and relationship_type != "parent-child":
@@ -390,28 +391,34 @@ class Date:
         confidence (str): The confidence level of the date.
 
     Args:
-        start_val (str): Should be an ISO-format date string (YYYY-MM-DD). If end_date is not specified,
-            then this is used to represent a specific day. If end_date is specified, this represents the
-            start date of the interval. If the date range is to be unbounded from below, then it should be
-            passed an empty string.
-        end_val (str or None): Should be an ISO-format date string (YYYY-MM-DD) representing the end date of
-            the interval. If the date range is to be unbounded from above, then it should be passed
-            an empty string.
+        start_val (str or datetime.date): Should be an ISO-format date string (YYYY-MM-DD) or a datetime.date
+            object. If end_date is not specified, then this is used to represent a specific day. If end_date is
+            specified, this represents the start date of the interval. If the date range is to be unbounded from
+            below, then it should be passed an empty string.
+        end_val (str or datetime.date or None): Should be an ISO-format date string (YYYY-MM-DD) or a datetime.date
+            object representing the end date of the interval. If the date range is to be unbounded from above,
+            then it should be passed an empty string.
         confidence (str or None): The confidence level of the date.
     """
-    def __init__(self, start_val, end_val=None, confidence=None):
-        if start_val != "":
-            self.start = datetime.datetime.strptime(start_val, "%Y-%m-%d").date()
+    def __init__(self, start_val, end_val=None, confidence="normal"):
+        if type(start_val) is datetime.date:
+            self.start = start_val
         else:
-            self.start = datetime.date.min
+            if start_val != "":
+                self.start = datetime.datetime.strptime(start_val, "%Y-%m-%d").date()
+            else:
+                self.start = datetime.date.min
 
         if end_val is None:
             self.end = self.start
         else:
-            if end_val != "":
-                self.end = datetime.datetime.strptime(end_val, "%Y-%m-%d").date()
+            if type(end_val) is datetime.date:
+                self.end = end_val
             else:
-                self.end = datetime.date.max
+                if end_val != "":
+                    self.end = datetime.datetime.strptime(end_val, "%Y-%m-%d").date()
+                else:
+                    self.end = datetime.date.max
 
         self.confidence = confidence
 
@@ -433,6 +440,12 @@ class Date:
             output = output + '({} confidence)'.format(self.confidence)
 
         return output
+
+    def is_exact(self):
+        if self.start == self.end:
+            return True
+        else:
+            return False
 
     def before(self, comp_date, strict=False):
         pass
@@ -478,9 +491,12 @@ class Duration:
         self.duration = datetime.timedelta(weeks=duration_list[2],
                                            days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
         if precision is None:
-            # find last non-zero element of reversed duration_list
-            index = next(x for x, val in enumerate(reversed(duration_list)) if val > 0)
-            self.precision = ["day", "week", "month", "year"][index]
+            if duration_list[3] == 0:
+                self.precision = "day"
+            else:
+                # find last non-zero element of reversed duration_list
+                index = next(x for x, val in enumerate(reversed(duration_list)) if val > 0)
+                self.precision = ["day", "week", "month", "year"][index]
         else:
             self.precision = precision
 
