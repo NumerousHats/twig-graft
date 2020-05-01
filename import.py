@@ -85,17 +85,24 @@ def import_deaths(filename, thesaurus):
             row["age_w"] = 0 if row["age_w"] is None else int(row["age_w"])
             row["age_d"] = 0 if row["age_d"] is None else int(row["age_d"])
 
-            # this_note = [v for k, v in notes.items() if k in ["age_y", "age_m", "age_w", "age_d"]]
-            # Durations don't have notes (yet)
-
             age = Duration(duration_list=[row["age_y"], row["age_m"], row["age_w"], row["age_d"]],
                            year_day_ambiguity=True if row["year_day"] else False)
+
+            this_note = [v for k, v in notes.items() if k in ["age_y", "age_m", "age_w", "age_d"]]
+            if this_note:
+                age.add_note(this_note)
             if [v for k, v in confidence.items() if k in ["age_y", "age_m", "age_w", "age_d"]]:
                 age.confidence = "low"
 
             location = Location(house_number=row["house_number"],
                                 alt_house_number=row["alt_house_number"],
                                 alt_village=row["house_location"])
+
+            this_note = [v for k, v in notes.items() if k in ["house_number", "alt_house_number", "house_location"]]
+            if this_note:
+                location.add_note(this_note)
+            if [v for k, v in confidence.items() if k in ["house_number", "alt_house_number", "house_location"]]:
+                location.confidence = "low"
 
             source = Source(repository=row["repository"], volume=row["book"], page_number=row["page"],
                             entry_number=row["entry"], image_file=row["image"])
