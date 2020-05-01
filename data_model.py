@@ -312,6 +312,7 @@ class Person(Conclusion):
             self.names.append(name)
 
     def summarize(self):
+        """A longer-form text summary of a Person object."""
         output = ["Person {}, gender={}\n".format(self.identifier, self.gender)]
         if self.names is not None:
             for name in self.names:
@@ -491,7 +492,7 @@ class Date(Statement):
 class Duration(Statement):
     """The duration of a time interval.
 
-    Objects of this class are typically used to represent the age of Person at the time of a particular
+    Objects of this class are typically used to represent the age of a Person at the time of a particular
     Fact.
 
     Attributes:
@@ -508,7 +509,7 @@ class Duration(Statement):
         year_day_ambiguity (bool): Indicates if there is a unit ambiguity between days and years.
             This happens for some death records where the pre-printed column heading for age is "dies
             vitae", but where a number was entered without units and there is a chance that the entered
-            number represents years instead of days. Precision should correspond to the
+            number actually represents years rather than days. Precision should correspond to the
             most likely unit based on other evidence in the record.
 
     Args:
@@ -563,7 +564,7 @@ class Source:
         volume (str): The repository's identifier for the volume in which the source record is located.
         page_number (int): The page number on which the record is located.
         entry_number (int): The entry number of the record.
-        image_file (str): The image file of the pages on which the source record is located.
+        image_file (str): The name of the image file in which the source record is located.
     """
     def __init__(self, repository=None, volume=None, page_number=None, entry_number=None,
                  image_file=None):

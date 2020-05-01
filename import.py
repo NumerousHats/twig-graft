@@ -46,6 +46,14 @@ def parse_date(date_string, year):
     return date
 
 
+def add_notes_confidence(statement, notes, confidence, fields):
+    this_note = [v for k, v in notes.items() if k in fields]
+    if this_note:
+        statement.add_note(this_note)
+    if [v for k, v in confidence.items() if k in fields]:
+        statement.confidence = "low"
+
+
 def import_deaths(filename, thesaurus):
     logger = logging.getLogger("twig_graft")
     logger.debug("importing {}".format(filename))
@@ -58,6 +66,8 @@ def import_deaths(filename, thesaurus):
             else:
                 # if there is no surname, assume it's an empty or nonstandard record
                 continue
+
+            # print(row)
 
             # pull out notes and low confidence indicators
             notes = {}
@@ -74,8 +84,6 @@ def import_deaths(filename, thesaurus):
                         confidence[key] = "low"
                         row[key] = value.rstrip(" ?")
 
-            # TODO and now we need to do something with them...
-
             # change empty strings to None
             def c(i): return i or None
             row = {k: c(v) for k, v in row.items()}
@@ -87,22 +95,13 @@ def import_deaths(filename, thesaurus):
 
             age = Duration(duration_list=[row["age_y"], row["age_m"], row["age_w"], row["age_d"]],
                            year_day_ambiguity=True if row["year_day"] else False)
-
-            this_note = [v for k, v in notes.items() if k in ["age_y", "age_m", "age_w", "age_d"]]
-            if this_note:
-                age.add_note(this_note)
-            if [v for k, v in confidence.items() if k in ["age_y", "age_m", "age_w", "age_d"]]:
-                age.confidence = "low"
+            add_notes_confidence(age, notes, confidence, ["age_y", "age_m", "age_w", "age_d"])
 
             location = Location(house_number=row["house_number"],
                                 alt_house_number=row["alt_house_number"],
                                 alt_village=row["house_location"])
-
-            this_note = [v for k, v in notes.items() if k in ["house_number", "alt_house_number", "house_location"]]
-            if this_note:
-                location.add_note(this_note)
-            if [v for k, v in confidence.items() if k in ["house_number", "alt_house_number", "house_location"]]:
-                location.confidence = "low"
+            add_notes_confidence(location, notes, confidence,
+                                 ["house_number", "alt_house_number", "house_location"])
 
             source = Source(repository=row["repository"], volume=row["book"], page_number=row["page"],
                             entry_number=row["entry"], image_file=row["image"])
@@ -130,31 +129,54 @@ def import_deaths(filename, thesaurus):
 
             if row["gender"] == "m":
                 if recorded_name:
-                    decedent.add_name(Name(name_type="birth", name_parts=recorded_name, thesaurus=thesaurus))
+                    decedent.add_name(
+                        add_notes_confidence(Name(name_type="birth", name_parts=recorded_name,
+                                                  thesaurus=thesaurus),
+                                             notes, confidence, ["surname", "given_name"]))
                 if aka_name:
-                    decedent.add_name(Name(name_type="also_known_as", name_parts=aka_name, thesaurus=thesaurus))
+                    decedent.add_name(
+                        add_notes_confidence(Name(name_type="also_known_as", name_parts=aka_name,
+                                                  thesaurus=thesaurus),
+                                             notes, confidence, ["surname", "given_name"]))
             else:
-                if row["coelebs"] is not None and row["gender"] == "f":
+                if row["coelebs"] is not None:
                     if recorded_name:
-                        decedent.add_name(Name(name_type="birth", name_parts=recorded_name, thesaurus=thesaurus))
+                        decedent.add_name(
+                            add_notes_confidence(Name(name_type="birth", name_parts=recorded_name,
+                                                      thesaurus=thesaurus),
+                                                 notes, confidence, ["surname", "given_name"]))
                     if aka_name:
                         decedent.add_name(
-                            Name(name_type="also_known_as", name_parts=aka_name, thesaurus=thesaurus))
+                            add_notes_confidence(Name(name_type="also_known_as", name_parts=aka_name,
+                                                      thesaurus=thesaurus),
+                                                 notes, confidence, ["surname", "given_name"]))
                 else:
                     if row["maiden_name"]:
                         this_name = recorded_name.copy()
                         this_name['surname'] = row['maiden_name']
                         this_name['house_name'] = None
-                        decedent.add_name(Name(name_type="birth", name_parts=this_name, thesaurus=thesaurus))
+                        decedent.add_name(
+                            add_notes_confidence(Name(name_type="birth", name_parts=this_name,
+                                                      thesaurus=thesaurus),
+                                                 notes, confidence, ["maiden_name", "given_name"]))
 
                     if row["spouse"] or row["uxoratus"]:
-                        decedent.add_name(Name(name_type="married", name_parts=recorded_name, thesaurus=thesaurus))
+                        decedent.add_name(
+                            add_notes_confidence(Name(name_type="married", name_parts=recorded_name,
+                                                      thesaurus=thesaurus),
+                                                 notes, confidence, ["surname", "given_name"]))
                     elif age.duration < datetime.timedelta(days=13) or \
                             (age.duration < datetime.timedelta(days=365*13) and not age.year_day_ambiguity):
-                        # we'll assume 12-year-old and younger girls were not getting married...
-                        decedent.add_name(Name(name_type="birth", name_parts=recorded_name, thesaurus=thesaurus))
+                        # we'll assume girls 12 years old and younger were not getting married...
+                        decedent.add_name(
+                            add_notes_confidence(Name(name_type="birth", name_parts=recorded_name,
+                                                      thesaurus=thesaurus),
+                                                 notes, confidence, ["surname", "given_name"]))
                     else:
-                        decedent.add_name(Name(name_type="unknown", name_parts=recorded_name, thesaurus=thesaurus))
+                        decedent.add_name(
+                            add_notes_confidence(Name(name_type="unknown", name_parts=recorded_name,
+                                                      thesaurus=thesaurus),
+                                                 notes, confidence, ["surname", "given_name"]))
 
             if row["coelebs"]:
                 decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=0))

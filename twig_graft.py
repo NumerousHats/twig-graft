@@ -2,7 +2,7 @@ import logging
 import logging.config
 import csv
 
-import import_deaths
+import import_records
 
 
 def main():
@@ -35,7 +35,7 @@ def main():
         for row in reader:
             thesaurus[row["raw"]] = row["standardized"]
 
-    import_deaths.import_deaths('test.csv', thesaurus)
+    import_records.import_deaths('test.csv', thesaurus)
 
 
 if __name__ == "__main__":
