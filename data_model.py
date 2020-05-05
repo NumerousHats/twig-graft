@@ -16,8 +16,7 @@ to Gedcom X are the following:
 
 __str__ methods return a reasonably terse human-readable depiction of the object.
 
-__repr__ methods return the full object serialized as JSON. The abstract base classes Statement and
-    Conclusion do not have a __repr__ method, as they should be instantiated only through their subclasses.
+__repr__ methods return the full object serialized as JSON.
 
 Each class also has a json_dict method, which returns a python dict that can be serialized into JSON
 representation.
@@ -50,6 +49,9 @@ class Statement:
             self.notes = [notes]
 
         self.confidence = confidence
+
+    def __repr__(self):
+        return json.dumps(self.json_dict())
 
     def json_dict(self):
         return {"notes": self.notes, "confidence": self.confidence}
@@ -128,9 +130,6 @@ class Fact(Conclusion):
         else:
             self.locations = [locations]
 
-    def __repr__(self):
-        return json.dumps(self.json_dict())
-
     def json_dict(self):
         output = {"fact_type": self.fact_type, "content": self.content}
         if self.age:
@@ -206,9 +205,6 @@ class Name(Conclusion):
                 except KeyError:
                     logger.info("key miss while standardizing surname '{}'".format(self.name_parts["surname"]))
 
-    def __repr__(self):
-        return json.dumps(self.json_dict())
-
     def json_dict(self):
         output = {"name_type": self.name_type, "name_parts": self.name_parts,
                   "standard_surname": self.standard_surname,
@@ -254,9 +250,6 @@ class Person(Conclusion):
 
         self.gender = gender
         self.identifier = str(uuid.uuid4())
-
-    def __repr__(self):
-        return json.dumps(self.json_dict())
 
     def json_dict(self):
         output = {"identifier": self.identifier, "gender": self.gender}
@@ -329,9 +322,6 @@ class Relationship(Conclusion):
         self.relationship_type = relationship_type
         self.identifier = str(uuid.uuid4())
 
-    def __repr__(self):
-        return json.dumps(self.json_dict())
-
     def json_dict(self):
         output = {"identifier": self.identifier, "from_id": self.from_id, "to_id": self.to_id,
                   "relationship_type": self.relationship_type}
@@ -358,9 +348,6 @@ class Location(Statement):
         self.house_number = house_number
         self.alt_house_number = alt_house_number
         self.alt_village = alt_village
-
-    def __repr__(self):
-        return json.dumps(self.json_dict())
 
     def json_dict(self):
         output = {"house_number": self.house_number, "alt_house_number": self.alt_house_number,
@@ -424,9 +411,6 @@ class Date(Statement):
                     self.end = datetime.date.max
 
         self.confidence = confidence
-
-    def __repr__(self):
-        return json.dumps(self.json_dict())
 
     def json_dict(self):
         output = {"start": self.start.isoformat(), "end": self.end.isoformat(),
@@ -508,9 +492,6 @@ class Duration(Statement):
 
         self.confidence = confidence
         self.year_day_ambiguity = year_day_ambiguity
-
-    def __repr__(self):
-        return json.dumps(self.json_dict())
 
     def json_dict(self):
         output = {"duration": self.duration_list, "confidence": self.confidence,
