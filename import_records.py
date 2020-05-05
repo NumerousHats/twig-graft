@@ -5,6 +5,8 @@ import calendar
 
 from data_model import *
 
+_maximum_age = datetime.timedelta(days=365*110)
+
 
 class ParseError(Exception):
     pass
@@ -59,9 +61,10 @@ def import_deaths(filename, thesaurus):
     logger = logging.getLogger("twig_graft")
     logger.debug("importing {}".format(filename))
 
+    output = {}
     with open(filename) as csv_file:
         reader = csv.DictReader(csv_file, delimiter=',', quotechar='"')
-        for row in reader:
+        for row_num, row in enumerate(reader):
             if row["surname"]:
                 surname = row["surname"]
             else:
@@ -195,10 +198,21 @@ def import_deaths(filename, thesaurus):
                 death_date = None
 
             if row["burial_date"]:
-                decedent.add_fact(Fact(fact_type="Burial", date=parse_date(row["burial_date"], row["year"]),
+                burial_date = parse_date(row["burial_date"], row["year"])
+                decedent.add_fact(Fact(fact_type="Burial", date=burial_date,
                                        age=age, locations=location, sources=source))
+            else:
+                burial_date = None
 
-            output = {"decedent": decedent.json_dict()}
+            if death_date or burial_date:
+                if row["birth_year"]:
+                    # TODO create a birth fact with an exact year
+                    pass
+                else:
+                    # TODO create a birth fact with an estimate birth date from age
+                    pass
+
+            row_data = {"decedent": decedent.json_dict()}
 
             if row["father"]:
                 if row["father"] == "[illegitimate]":
@@ -213,9 +227,10 @@ def import_deaths(filename, thesaurus):
 
                     if row["father_deceased"] and death_date:
                         father.add_fact(Fact(fact_type="Death", date=Date("", death_date.end)))
+                        # TODO actually the lower bound is not infinite, as people have finite lifetimes
 
-                    output.update({"father": father.json_dict()})
-                    output.update({"father_rel": father_rel.json_dict()})
+                    row_data.update({"father": father.json_dict()})
+                    row_data.update({"father_rel": father_rel.json_dict()})
 
             if row["mother"]:
                 mother = Person(gender="f",
@@ -223,18 +238,64 @@ def import_deaths(filename, thesaurus):
                                            name_parts={"given": row["mother"], "surname": surname},
                                            thesaurus=thesaurus),
                                 sources=source)
+                if row["mothers_father"]:
+                    # TODO create a maiden name entry
+                    pass
+
                 mother_rel = Relationship(mother.identifier, decedent.identifier, "parent-child", sources=source)
 
                 if row["mother_deceased"] and death_date:
                     mother.add_fact(Fact(fact_type="Death", date=Date("", death_date.end)))
+                    # TODO actually the lower bound is not infinite, as people have finite lifetimes
 
-                output.update({"mother": mother.json_dict()})
-                output.update({"mother_rel": mother_rel.json_dict()})
+                row_data.update({"mother": mother.json_dict()})
+                row_data.update({"mother_rel": mother_rel.json_dict()})
+
+            # TODO if row["mothers_father"] has a given name, create a Person
+
+            if row["mothers_mother"]:
+                # TODO create a Person. Need to get surname from mothers_father and possible maiden name from
+                #  mothers_mothers_father
+                pass
+
+            # TODO if mothers_mothers_father has a given name, create a Person
+
+            # TODO deal with "mothers_spouse". This could be a mess...
+
+            if row['sibling']:
+                # TODO parse the semicolons and create Persons
+                pass
 
             if row["spouse"]:
                 if decedent.gender == "m":
                     spouse = Person(gender="f", names=Name())
+                    if row["spouse_surname"]:
+                        # TODO add a maiden name
+                        pass
+                    decedent_marriage = Relationship(decedent, spouse, sources=source)
                 else:
                     spouse = Person(gender="m", names=Name())
+                    if row["spouse_surname"]:
+                        # TODO this means the spouse remarried. Ugh.
+                        pass
+                    decedent_marriage = Relationship(spouse, decedent, sources=source)
 
-            print(json.dumps(output))
+            if row["widow(er)"]:
+                if spouse:
+                    # TODO add death date to spouse
+                    pass
+                else:
+                    # TODO There is no spouse, but now we know something about their death date, so we
+                    #  will need to create a no-name spouse.
+                    pass
+
+            if row["years_married"]:
+                # TODO subtract the duration from the death/burial date to estimate a marriage date, and
+                #  add that as a Fact to decedent_marriage
+                pass
+
+            # TODO now do it all over again for the second marriage, if there is one
+
+            output["row{}".format(row_num)] = row_data
+
+    print(json.dumps(output))

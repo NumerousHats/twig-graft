@@ -447,6 +447,13 @@ class Date(Statement):
     def same(self, comp_date):
         pass
 
+    def subtract(self, duration):
+        """Subtract a Duration from a Date and return a new Date.
+
+        With all of the appropriate precisions and ranges set correctly, of course.
+        """
+        pass
+
 
 class Duration(Statement):
     """The duration of a time interval.
