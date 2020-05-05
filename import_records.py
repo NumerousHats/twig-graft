@@ -52,6 +52,7 @@ def add_notes_confidence(statement, notes, confidence, fields):
         statement.add_note(this_note)
     if [v for k, v in confidence.items() if k in fields]:
         statement.confidence = "low"
+    return statement
 
 
 def import_deaths(filename, thesaurus):
@@ -73,11 +74,13 @@ def import_deaths(filename, thesaurus):
             notes = {}
             confidence = {}
             for key, value in row.items():
+                # print("doing {}: {}".format(key, value))
                 if value:
                     match = re.search(r'<(.+)>', value)
                     if match:
                         notes[key] = match[1]
                         row[key] = value.replace(match[0], "").strip()
+                        value = row[key]
 
                     match = re.search(r'\?$', value)
                     if match:
@@ -195,7 +198,7 @@ def import_deaths(filename, thesaurus):
                 decedent.add_fact(Fact(fact_type="Burial", date=parse_date(row["burial_date"], row["year"]),
                                        age=age, locations=location, sources=source))
 
-            print('"decedent": ' + repr(decedent))
+            output = {"decedent": decedent.json_dict()}
 
             if row["father"]:
                 if row["father"] == "[illegitimate]":
@@ -211,7 +214,8 @@ def import_deaths(filename, thesaurus):
                     if row["father_deceased"] and death_date:
                         father.add_fact(Fact(fact_type="Death", date=Date("", death_date.end)))
 
-                    print('"father": ' + repr(father))
+                    output.update({"father": father.json_dict()})
+                    output.update({"father_rel": father_rel.json_dict()})
 
             if row["mother"]:
                 mother = Person(gender="f",
@@ -224,10 +228,13 @@ def import_deaths(filename, thesaurus):
                 if row["mother_deceased"] and death_date:
                     mother.add_fact(Fact(fact_type="Death", date=Date("", death_date.end)))
 
-                print('"mother": ' + repr(mother))
+                output.update({"mother": mother.json_dict()})
+                output.update({"mother_rel": mother_rel.json_dict()})
 
             if row["spouse"]:
                 if decedent.gender == "m":
                     spouse = Person(gender="f", names=Name())
                 else:
                     spouse = Person(gender="m", names=Name())
+
+            print(json.dumps(output))

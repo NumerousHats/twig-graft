@@ -253,8 +253,10 @@ class Person(Conclusion):
 
     def json_dict(self):
         output = {"identifier": self.identifier, "gender": self.gender}
-        output.update({"names": [x.json_dict() for x in self.names]})
-        output.update({"facts": [x.json_dict() for x in self.facts]})
+        if self.names:
+            output.update({"names": [x.json_dict() for x in self.names]})
+        if self.facts:
+            output.update({"facts": [x.json_dict() for x in self.facts]})
         output.update(super().json_dict())
         return output
 
@@ -325,7 +327,8 @@ class Relationship(Conclusion):
     def json_dict(self):
         output = {"identifier": self.identifier, "from_id": self.from_id, "to_id": self.to_id,
                   "relationship_type": self.relationship_type}
-        output.update({"facts": [x.json_dict() for x in self.facts]})
+        if self.facts:
+            output.update({"facts": [x.json_dict() for x in self.facts]})
         output.update(super().json_dict())
         return output
 
