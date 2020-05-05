@@ -15,12 +15,16 @@ def main():
     print(repr(location))
     print("\n")
 
+    location2 = Location(house_number=999)
+    print(repr(location2))
+    print("\n")
+
     name = Name(name_type="birth", name_parts={"given": "Bob", "surname": "Melnyk"}, sources=source,
                 notes=["Note #1", "Note #2"], confidence="none whatsoever")
     print(repr(name))
     print("\n")
 
-    fact1 = Fact(fact_type="death", date=Date("1854-01-02"), age=duration, locations=location)
+    fact1 = Fact(fact_type="death", date=Date("1854-01-02"), age=duration, locations=[location, location2])
     print(repr(fact1))
     print("\n")
 

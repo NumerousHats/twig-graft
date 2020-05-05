@@ -16,9 +16,11 @@ to Gedcom X are the following:
 
 __str__ methods return a reasonably terse human-readable depiction of the object.
 
-__repr__ methods return the full object serialized as JSON (with the exception of Statement and Conclusion,
-    which should be instantiated only through their subclasses, and for which __repr__ returns a list of
-    JSON elements).
+__repr__ methods return the full object serialized as JSON. The abstract base classes Statement and
+    Conclusion do not have a __repr__ method, as they should be instantiated only through their subclasses.
+
+Each class also has a json_dict method, which returns a python dict that can be serialized into JSON
+representation.
 
 Some classes also have a summarize() method that provides a more verbose human-readable summary.
 
@@ -27,16 +29,7 @@ Some classes also have a summarize() method that provides a more verbose human-r
 import datetime
 import uuid
 import logging
-
-
-def json_element(name, value):
-    if type(value) is str:
-        output = '"{}": "{}"'.format(name, value)
-    elif value is None:
-        output = '"{}": "None"'.format(name)
-    else:
-        output = '"{}": {}'.format(name, value)
-    return output
+import json
 
 
 class Statement:
@@ -58,15 +51,8 @@ class Statement:
 
         self.confidence = confidence
 
-    def __repr__(self):
-        output = []
-
-        if self.notes:
-            output.append('"notes": [{}]'.format(", ".join(['"{}"'.format(x) for x in self.notes])))
-        if self.confidence:
-            output.append(json_element("confidence", self.confidence))
-
-        return output
+    def json_dict(self):
+        return {"notes": self.notes, "confidence": self.confidence}
 
     def add_note(self, note):
         if self.notes is None:
@@ -94,13 +80,11 @@ class Conclusion(Statement):
         else:
             self.sources = [sources]
 
-    def __repr__(self):
-        output = []
-
+    def json_dict(self):
+        output = {}
         if self.sources:
-            output.append('"sources": [{}]'.format(", ".join([repr(x) for x in self.sources])))
-        output.extend(super().__repr__())
-
+            output.update({"sources": [x.json_dict() for x in self.sources]})
+        output.update(super().json_dict())
         return output
 
     def add_source(self, source):
@@ -145,17 +129,18 @@ class Fact(Conclusion):
             self.locations = [locations]
 
     def __repr__(self):
-        output = [json_element("fact_type", self.fact_type),
-                  json_element("content", self.content)]
-        if self.date:
-            output.append('"date": {}'.format(repr(self.date)))
-        if self.age:
-            output.append('"age": {}'.format(repr(self.age)))
-        if self.locations:
-            output.append('"locations": [{}]'.format(", ".join([repr(x) for x in self.locations])))
+        return json.dumps(self.json_dict())
 
-        output.extend(super().__repr__())
-        return "{{{}}}".format(", ".join(output))
+    def json_dict(self):
+        output = {"fact_type": self.fact_type, "content": self.content}
+        if self.age:
+            output.update({"age": self.age.json_dict()})
+        if self.date:
+            output.update({"date": self.date.json_dict()})
+        if self.locations:
+            output.update({"locations": [x.json_dict() for x in self.locations]})
+        output.update(super().json_dict())
+        return output
 
     def __str__(self):
         top_line = format(self.fact_type)
@@ -172,18 +157,6 @@ class Fact(Conclusion):
             output.append("\tHouse number(s) {}".format(", ".join(places)))
 
         return "".join(output)
-
-    def set_type(self, fact_type):
-        self.fact_type = fact_type
-
-    def set_content(self, content):
-        self.content = content
-
-    def set_date(self, date):
-        self.date = date
-
-    def set_age(self, age):
-        self.age = age
 
     def add_location(self, location):
         if self.locations is None:
@@ -234,17 +207,16 @@ class Name(Conclusion):
                     logger.info("key miss while standardizing surname '{}'".format(self.name_parts["surname"]))
 
     def __repr__(self):
-        parts = ['"{}": "{}"'.format(k, v) for k, v in self.name_parts.items()]
-        output = [json_element("name_type", self.name_type),
-                  '"name_parts": {{{}}}'.format(", ".join(parts)),
-                  json_element("standard_surname", self.standard_surname),
-                  json_element("standard_given", self.standard_given),
-                  ]
-        if self.date:
-            output.append('"date": {}'.format(repr(self.date)))
+        return json.dumps(self.json_dict())
 
-        output.extend(super().__repr__())
-        return "{{{}}}".format(", ".join(output))
+    def json_dict(self):
+        output = {"name_type": self.name_type, "name_parts": self.name_parts,
+                  "standard_surname": self.standard_surname,
+                  "standard_given": self.standard_given}
+        if self.date:
+            output.update({"date": self.date.json_dict()})
+        output.update(super().json_dict())
+        return output
 
     def __str__(self):
         output = [self.name_parts[x] for x in Name.__name_order
@@ -284,15 +256,14 @@ class Person(Conclusion):
         self.identifier = str(uuid.uuid4())
 
     def __repr__(self):
-        output = [json_element("identifier", self.identifier),
-                  json_element("gender", self.gender)]
-        if self.names:
-            output.append('"names": [{}]'.format(", ".join([repr(x) for x in self.names])))
-        if self.facts:
-            output.append('"facts": [{}]'.format(", ".join([repr(x) for x in self.facts])))
+        return json.dumps(self.json_dict())
 
-        output.extend(super().__repr__())
-        return "{{{}}}".format(", ".join(output))
+    def json_dict(self):
+        output = {"identifier": self.identifier, "gender": self.gender}
+        output.update({"names": [x.json_dict() for x in self.names]})
+        output.update({"facts": [x.json_dict() for x in self.facts]})
+        output.update(super().json_dict())
+        return output
 
     def __str__(self):
         pass
@@ -359,15 +330,14 @@ class Relationship(Conclusion):
         self.identifier = str(uuid.uuid4())
 
     def __repr__(self):
-        output = [json_element("identifier", self.identifier),
-                  json_element("from_id", self.from_id),
-                  json_element("to_id", self.to_id),
-                  json_element("relationship_type", self.relationship_type)]
-        if self.facts:
-            output.append('"facts": [{}]'.format(", ".join([repr(x) for x in self.facts])))
+        return json.dumps(self.json_dict())
 
-        output.extend(super().__repr__())
-        return "{{{}}}".format(", ".join(output))
+    def json_dict(self):
+        output = {"identifier": self.identifier, "from_id": self.from_id, "to_id": self.to_id,
+                  "relationship_type": self.relationship_type}
+        output.update({"facts": [x.json_dict() for x in self.facts]})
+        output.update(super().json_dict())
+        return output
 
 
 class Location(Statement):
@@ -390,11 +360,13 @@ class Location(Statement):
         self.alt_village = alt_village
 
     def __repr__(self):
-        output = [json_element("house_number", self.house_number),
-                  json_element("alt_house_number", self.alt_house_number),
-                  json_element("alt_village", self.alt_village)]
-        output.extend(super().__repr__())
-        return "{{{}}}".format(", ".join(output))
+        return json.dumps(self.json_dict())
+
+    def json_dict(self):
+        output = {"house_number": self.house_number, "alt_house_number": self.alt_house_number,
+                  "alt_village": self.alt_village}
+        output.update(super().json_dict())
+        return output
 
     def __str__(self):
         output = []
@@ -454,13 +426,13 @@ class Date(Statement):
         self.confidence = confidence
 
     def __repr__(self):
-        output = [json_element("start", self.start.isoformat()),
-                  json_element("end", self.end.isoformat())]
-        if self.confidence:
-            output.append(json_element("confidence", self.confidence))
-        output.extend(super().__repr__())
+        return json.dumps(self.json_dict())
 
-        return '{{{}}}'.format(", ".join(output))
+    def json_dict(self):
+        output = {"start": self.start.isoformat(), "end": self.end.isoformat(),
+                  "confidence": self.confidence}
+        output.update(super().json_dict())
+        return output
 
     def __str__(self):
         if self.start == self.end:
@@ -525,7 +497,7 @@ class Duration(Statement):
         self.duration = datetime.timedelta(weeks=duration_list[2],
                                            days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
         if precision is None:
-            if duration_list[3] == 0:
+            if sum(duration_list) == 0:
                 self.precision = "day"
             else:
                 # find last non-zero element of reversed duration_list
@@ -538,13 +510,13 @@ class Duration(Statement):
         self.year_day_ambiguity = year_day_ambiguity
 
     def __repr__(self):
-        output = ['"duration": {}'.format(self.duration_list),
-                  json_element("confidence", self.confidence),
-                  json_element("precision", self.precision),
-                  json_element("year_day_ambiguity", str(self.year_day_ambiguity))]
-        output.extend(super().__repr__())
+        return json.dumps(self.json_dict())
 
-        return '{{{}}}'.format(", ".join(output))
+    def json_dict(self):
+        output = {"duration": self.duration_list, "confidence": self.confidence,
+                  "precision": self.precision, "year_day_ambiguity": str(self.year_day_ambiguity)}
+        output.update(super().json_dict())
+        return output
 
     def __str__(self):
         time_names = ("years", "months", "weeks", "days")
@@ -575,13 +547,12 @@ class Source:
         self.image_file = image_file
 
     def __repr__(self):
-        output = [json_element("repository", self.repository),
-                  json_element("volume", self.volume),
-                  json_element("page_number", self.page_number),
-                  json_element("entry_number", self.entry_number),
-                  json_element("image_file", self.image_file)]
+        return json.dumps(self.json_dict())
 
-        return "{{{}}}".format(", ".join(output))
+    def json_dict(self):
+        return {"repository": self.repository, "volume": self.volume, "page_number": self.page_number,
+                "entry_number": self.entry_number,
+                "image_file": self.image_file}
 
     def __str__(self):
         return '{}, volume {}, page {}, entry {} ({})'.format(self.repository,
