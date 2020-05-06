@@ -28,6 +28,25 @@ def parse_name(name_string):
     return main_name, sub_name
 
 
+def parse_comma_name(name_string):
+    parts = name_string.split(',')
+    
+    if len(parts) == 1:
+        surname = parts[0].strip()
+        given = None
+    elif len(parts) == 2:
+        if parts[0] == "":
+            surname = None
+            given = parts[1].strip()
+        else:
+            surname = parts[0].strip()
+            given = parts[1].strip()
+    else:
+        raise ParseError("couldn't parse name {}".format(name_string))
+
+    return surname, given
+
+
 def parse_date(date_string, year):
     match = re.search(r'\d{4}-(\d{2})-(.{2,3})', date_string)
     if match:
@@ -133,6 +152,17 @@ def import_deaths(filename, thesaurus):
                 else:
                     recorded_name["given"] = given
 
+            # parse the other comma-delimited ancestor names for use below
+            mf_given = None
+            mf_surname = None
+            if row["mothers_father"]:
+                mf_surname, mf_given = parse_comma_name(row["mothers_father"])
+
+            mmf_given = None
+            mmf_surname = None
+            if row["mothers_mothers_father"]:
+                mmf_surname, mmf_given = parse_comma_name(row["mothers_mothers_father"])
+
             if row["gender"] == "m":
                 if recorded_name:
                     decedent.add_name(
@@ -209,7 +239,7 @@ def import_deaths(filename, thesaurus):
                     # TODO create a birth fact with an exact year
                     pass
                 else:
-                    # TODO create a birth fact with an estimate birth date from age
+                    # TODO create a birth fact with an estimated birth date from age
                     pass
 
             row_data = {"decedent": decedent.json_dict()}
@@ -238,9 +268,10 @@ def import_deaths(filename, thesaurus):
                                            name_parts={"given": row["mother"], "surname": surname},
                                            thesaurus=thesaurus),
                                 sources=source)
-                if row["mothers_father"]:
-                    # TODO create a maiden name entry
-                    pass
+                if mf_surname:
+                    mother.add_name(Name(name_type="birth",
+                                         name_parts={"given": row["mother"], "surname": mf_surname},
+                                         thesaurus=thesaurus))
 
                 mother_rel = Relationship(mother.identifier, decedent.identifier, "parent-child", sources=source)
 
@@ -251,34 +282,65 @@ def import_deaths(filename, thesaurus):
                 row_data.update({"mother": mother.json_dict()})
                 row_data.update({"mother_rel": mother_rel.json_dict()})
 
-            # TODO if row["mothers_father"] has a given name, create a Person
+            if mf_surname and mf_given:
+                mothers_father = Person(gender="m",
+                                        names=Name(name_type="birth",
+                                                   name_parts={"given": mf_given, "surname": mf_surname},
+                                                   thesaurus=thesaurus),
+                                        sources=source)
+                m_mf_rel = Relationship(mothers_father.identifier, mother.identifier, "parent-child",
+                                        sources=source)
 
             if row["mothers_mother"]:
-                # TODO create a Person. Need to get surname from mothers_father and possible maiden name from
-                #  mothers_mothers_father
-                pass
+                mothers_mother = Person(gender="f",
+                                        names=Name(name_type="married",
+                                                   name_parts={"given": row["mothers_mother"], "surname": mf_surname},
+                                                   thesaurus=thesaurus),
+                                        sources=source)
+                if mmf_surname:
+                    mothers_mother.add_name(Name(name_type="birth",
+                                                 name_parts={"given": row["mothers_mother"], "surname": mmf_surname},
+                                                 thesaurus=thesaurus))
+                m_mm_rel = Relationship(mothers_mother.identifier, mother.identifier, "parent-child",
+                                        sources=source)
 
-            # TODO if mothers_mothers_father has a given name, create a Person
+            if mmf_given:
+                mothers_mothers_father = Person(gender="m",
+                                                names=Name(name_type="birth",
+                                                           name_parts={"given": mmf_given, "surname": mmf_surname},
+                                                           thesaurus=thesaurus),
+                                                sources=source)
+                mm_mmf_rel = Relationship(mothers_mothers_father.identifier, mothers_mother.identifier,
+                                          "parent-child", sources=source)
 
             # TODO deal with "mothers_spouse". This could be a mess...
 
             if row['sibling']:
-                # TODO parse the semicolons and create Persons
+                # TODO parse the semicolons, create Persons, potentially nameless parents, and
+                #  parent-child Relations
                 pass
 
             if row["spouse"]:
                 if decedent.gender == "m":
-                    spouse = Person(gender="f", names=Name())
+                    spouse = Person(gender="f", names=Name(name_type="married",
+                                                           name_parts={"given": row["spouse"],
+                                                                       "surname": recorded_name["surname"]},
+                                                           sources=source, thesaurus=thesaurus))
                     if row["spouse_surname"]:
-                        # TODO add a maiden name
-                        pass
-                    decedent_marriage = Relationship(decedent, spouse, sources=source)
+                        spouse.add_name(Name(name_type="maiden",
+                                             name_parts={"given": row["spouse"],
+                                                         "surname": row["spouse_surname"]},
+                                             sources=source, thesaurus=thesaurus))
+
+                    decedent_marriage = Relationship(decedent.identifier, spouse.identifier, "spouse",
+                                                     sources=source)
                 else:
                     spouse = Person(gender="m", names=Name())
                     if row["spouse_surname"]:
                         # TODO this means the spouse remarried. Ugh.
                         pass
-                    decedent_marriage = Relationship(spouse, decedent, sources=source)
+                    decedent_marriage = Relationship(spouse.identifier, decedent.identifier, "spouse",
+                                                     sources=source)
 
             if row["widow(er)"]:
                 if spouse:
