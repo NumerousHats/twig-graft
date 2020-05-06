@@ -225,7 +225,7 @@ class Person(Conclusion):
     """A description of a person.
 
     Attributes:
-        names (list of Name): The name(s) of the person.
+        names (list of Name): The name(s) of the person. A person can have only one "given" and one "married" name.
         gender (str): The sex of the person.
         facts (list of Fact): Fact(s) regarding the person.
         identifier (str): A unique internal identifier for this person.
@@ -238,10 +238,19 @@ class Person(Conclusion):
                  sources=None, notes=None, confidence="normal"):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
 
-        if type(names) is list or names is None:
-            self.names = names
+        if names:
+            if type(names) is list:
+                if len([n for n in names if n.name_type == "birth"]) > 1:
+                    raise ValueError("a Person can only have one birth Name")
+                if len([n for n in names if n.name_type == "married"]) > 1:
+                    raise ValueError("a Person can only have one married Name")
+                self.names = names
+            elif type(names) is Name:
+                self.names = [names]
+            else:
+                raise ValueError("names must be a Name object or a list thereof")
         else:
-            self.names = [names]
+            self.names = None
 
         if type(facts) is list or facts is None:
             self.facts = facts
@@ -272,10 +281,17 @@ class Person(Conclusion):
             self.facts.append(fact)
 
     def add_name(self, name):
+        if type(name) is not Name:
+            raise ValueError("only Name objects can be added as the name of a Person")
+
         if self.names is None:
             self.names = [name]
         else:
             self.names.append(name)
+            if len([n for n in self.names if n.name_type == "birth"]) > 1:
+                raise ValueError("a Person can only have one birth Name")
+            if len([n for n in self.names if n.name_type == "married"]) > 1:
+                raise ValueError("a Person can only have one married Name")
 
     def summarize(self):
         """A longer-form text summary of a Person object."""
@@ -289,6 +305,13 @@ class Person(Conclusion):
                 output.append("{}\n".format(str(fact)))
 
         return "".join(output)
+
+    def get_name(self, name_type):
+        """Extract Name of a particular type, if it exists. Return None if nonexistent.
+
+        Only returns the first occurrence if there is more than one.
+        """
+        return next((n for n in self.names if n.name_type == name_type), None)
 
 
 class Relationship(Conclusion):
