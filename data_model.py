@@ -36,7 +36,7 @@ class Statement:
 
     Attributes:
         notes (list of str): Note(s) about this statement.
-        confidence (str): A confidence level for this statement. Should be either "normal" or "low".
+        confidence (str): A confidence level for this statement. Should be either "normal", "calculated", or "low".
 
     Args:
         notes (str or list of str or None): Note(s) about this conclusion.
@@ -225,7 +225,7 @@ class Person(Conclusion):
     """A description of a person.
 
     Attributes:
-        names (list of Name): The name(s) of the person. A person can have only one "given" and one "married" name.
+        names (list of Name): The name(s) of the person. A person can have only one "birth" and one "married" name.
         gender (str): The sex of the person.
         facts (list of Fact): Fact(s) regarding the person.
         identifier (str): A unique internal identifier for this person.
@@ -461,22 +461,6 @@ class Date(Statement):
         else:
             return False
 
-    def before(self, comp_date, strict=False):
-        pass
-
-    def after(self, comp_date, strict=False):
-        pass
-
-    def same(self, comp_date):
-        pass
-
-    def subtract(self, duration):
-        """Subtract a Duration from a Date and return a new Date.
-
-        With all of the appropriate precisions and ranges set correctly, of course.
-        """
-        pass
-
 
 class Duration(Statement):
     """The duration of a time interval.
@@ -491,7 +475,7 @@ class Duration(Statement):
         precision (str): The precision of the duration. Must be one of ("year", "month", "week", "day").
             For example, a death record specifying that the age of the deceased was "4 2/3 annorum"
             should be given a precision of "month".
-        confidence (str): Confidence level (accuracy) of the duration. Must be one of "normal" or "low".
+        confidence (str): Confidence level (accuracy) of the duration. Must be one of "normal", "calculated", or "low".
             Confidence is independent of precision: the priest may have written "4 2/3 annorum" (i.e. a
             precision of "month"), but if sloppy penmanship makes it hard to tell whether the number is
             a "4" or a "9", then the confidence level is only to within 5 years.
@@ -574,3 +558,93 @@ class Source:
                                                               self.page_number,
                                                               self.entry_number,
                                                               self.image_file)
+
+
+def compare_date(date1, date2):
+    """Compare two Date objects.
+
+    This function is a total mess and not usable as it is currently written.
+
+    For degenerate ranges (i.e. start == end), the situation is trivial: the Dates are either the same,
+    or one is before the other. For non-degenerate ranges, there seem to be 11 possibilities for how
+    they could relate to each other. If the ranges match exactly or are non-overlapping, then the
+    situation is again similar to the degenerate case. For the remaining 8 possibilities, classifying them into
+    "before" or "after" is not at all simple, and it's not clear what this function should return.
+
+    Perhaps this should be split into multiple functions: one to determine whether there is overlap, one to determine
+    if there is strict equality or ordering, and one to determine the direction of "asymmetric overhang".
+
+    Args:
+        date1 (Date): The first Date to compare.
+        date2 (Date): The second Date to compare.
+
+    Returns:
+        Good question.
+    """
+    if type(date1) is not Date or type(date2) is not Date:
+        raise TypeError("arguments to compare_data must be Date objects")
+
+    # TODO this needs to be seriously re-thunk
+    if date1.start == date2.start and date1.end == date2.end:
+        return 0
+    if date1.start < date2.start:
+        if date1.end < date2.start:
+            return 2
+        else:
+            return 1
+    else:
+        pass
+
+
+def subtract(date, duration):
+    """Subtract a Duration from a Date and return a new Date.
+
+    This is not a straightforward subtraction of a datetime.timedelta from a datetime.date, because a Duration
+    has an associated precision. So, subtracting an age of 35 years (with a precision of years) from an exact
+    death date of 1899-01-02 should produce a birth date estimate that has a range from 1863-01-03 (i.e. the
+    person died just one day shy of their 36th birthday) to 1864-01-02 (they died exactly on their 35th birthday).
+    Precisions of months and weeks need to be treated similarly.
+
+    Furthermore, the Date that is being subtracted from may itself already consist of a range. So, suppose that
+    we did not know an exact death date, but only that it was in the interval [1899-01-01, 1899-01-31]. Then, if
+    we know that the person died at the age of 35 years (with a precision of years), then the resulting range for
+    the birth date should be [1863-01-02, 1864-01-31].
+
+    For simplicity, it assumes that months are 30 days long and years are 365 days long (consistent with the
+    Duration.duration).
+
+    If there is year-day ambiguity in the duration or either the date or duration have a confidence of "low", then
+    the resulting Date.confidence is set to "low", otherwise it is set to "calculated".
+
+    Args:
+        date (Date): The Date to be subtracted from.
+        duration (Duration): The Duration to subtract.
+
+    Returns:
+        A new Date object corresponding to the date minus the duration
+    """
+    if type(duration) is not Duration or type(date) is not Date:
+        raise TypeError("duration must be a Duration and date must be a Date")
+
+    if duration.precision == "day":
+        start = date.start - duration.duration
+        end = date.end - duration.duration
+    elif duration.precision == "week":
+        start = date.start - (duration.duration + datetime.timedelta(days=6))
+        end = date.end - duration.duration
+    elif duration.precision == "month":
+        start = date.start - (duration.duration + datetime.timedelta(days=29))
+        end = date.end - duration.duration
+    elif duration.precision == "year":
+        start = date.start - (duration.duration + datetime.timedelta(days=364))
+        end = date.end - duration.duration
+    else:
+        raise ValueError("illegal precision value in Duration")
+
+    newdate = Date(start, end)
+    if date.confidence == "low" or duration.confidence == "low" or duration.year_day_ambiguity:
+        newdate.confidence = "low"
+    else:
+        newdate.confidence = "calculated"
+
+    return newdate
