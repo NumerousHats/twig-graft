@@ -32,7 +32,7 @@ import json
 
 
 class Statement:
-    """Abstract class for a statement about something.
+    """Base class for a statement about something.
 
     Attributes:
         notes (list of str): Note(s) about this statement.
@@ -64,7 +64,9 @@ class Statement:
 
 
 class Conclusion(Statement):
-    """Abstract class for a basic genealogical data item.
+    """Base class for an elementary genealogical data item.
+
+    Equivalent to a Statement, but with an attribute for sources.
 
     Attributes:
         sources (list of Source): Source(s) related to this conclusion.
@@ -354,6 +356,12 @@ class Relationship(Conclusion):
             output.update({"facts": [x.json_dict() for x in self.facts]})
         output.update(super().json_dict())
         return output
+
+    def add_fact(self, fact):
+        if self.facts is None:
+            self.facts = [fact]
+        else:
+            self.facts.append(fact)
 
 
 class Location(Statement):

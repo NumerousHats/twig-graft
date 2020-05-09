@@ -5,7 +5,7 @@ import calendar
 
 from data_model import *
 
-_maximum_age = datetime.timedelta(days=365*110)
+maximum_age = datetime.timedelta(days=365*110)
 
 
 class ParseError(Exception):
@@ -87,7 +87,7 @@ def import_deaths(filename, thesaurus):
             if row["surname"]:
                 surname = row["surname"]
             else:
-                # if there is no surname, assume it's an empty or nonstandard record
+                logger.info("Row {} has no surname and so is either empty or nonstandard. Skipping.".format(row_num))
                 continue
 
             # print(row)
@@ -108,6 +108,8 @@ def import_deaths(filename, thesaurus):
                     if match:
                         confidence[key] = "low"
                         row[key] = value.rstrip(" ?")
+
+            # TODO need to add the above to the rest of the new objects
 
             # change empty strings to None
             def c(i): return i or None
@@ -235,12 +237,28 @@ def import_deaths(filename, thesaurus):
                 burial_date = None
 
             if death_date or burial_date:
-                if row["birth_year"]:
-                    # TODO create a birth fact with an exact year
-                    pass
+                birth = Fact(fact_type="birth")
+                if death_date:
+                    birth_date = subtract(death_date, age)
                 else:
-                    # TODO create a birth fact with an estimated birth date from age
-                    pass
+                    # we only know the burial date, so assume death occurred within one week
+                    birth_date = subtract(burial_date, age)
+                    birth_date.start = birth_date.start - datetime.timedelta(days=6)
+                    death_date = Date(burial_date.start - datetime.timedelta(days=6),
+                                      burial_date.end,
+                                      notes=["Death date unknown, estimated from burial date"],
+                                      confidence="calculated")
+
+                if row["birth_year"]:
+                    birth_year = int(row["birth_year"])
+                    if birth_date.start < datetime.date(birth_year, 1, 1):
+                        birth_date.start = datetime.date(birth_year, 1, 1)
+                    if birth_date.end > datetime.date(birth_year, 12, 31):
+                        birth_date.end = datetime.date(birth_year, 12, 31)
+
+                birth.date = birth_date
+            else:
+                logger.error("No death or burial date. Nonstandard record?")
 
             row_data = {"decedent": decedent.json_dict()}
 
@@ -256,8 +274,8 @@ def import_deaths(filename, thesaurus):
                     father_rel = Relationship(father.identifier, decedent.identifier, "parent-child", sources=source)
 
                     if row["father_deceased"] and death_date:
-                        father.add_fact(Fact(fact_type="Death", date=Date("", death_date.end)))
-                        # TODO actually the lower bound is not infinite, as people have finite lifetimes
+                        father.add_fact(Fact(fact_type="Death",
+                                             date=Date(death_date.start-maximum_age, death_date.end)))
 
                     row_data.update({"father": father.json_dict()})
                     row_data.update({"father_rel": father_rel.json_dict()})
@@ -276,11 +294,14 @@ def import_deaths(filename, thesaurus):
                 mother_rel = Relationship(mother.identifier, decedent.identifier, "parent-child", sources=source)
 
                 if row["mother_deceased"] and death_date:
-                    mother.add_fact(Fact(fact_type="Death", date=Date("", death_date.end)))
-                    # TODO actually the lower bound is not infinite, as people have finite lifetimes
+                    mother.add_fact(Fact(fact_type="Death", date=Date(death_date.start-maximum_age, death_date.end)))
 
                 row_data.update({"mother": mother.json_dict()})
                 row_data.update({"mother_rel": mother_rel.json_dict()})
+
+            if father and mother:
+                parent_rel = Relationship(father.identifier, mother.identifier, "marriage", sources=source)
+                # TODO broken! crash if record is missing a parent record
 
             if mf_surname and mf_given:
                 mothers_father = Person(gender="m",
@@ -316,9 +337,21 @@ def import_deaths(filename, thesaurus):
             # TODO deal with "mothers_spouse". This could be a mess...
 
             if row['sibling']:
+                siblings = row['sibling'].split(';')
+                for sibling_text in siblings:
+                    match = re.match(r'(\S+)\s+\((\S+)\)', sibling_text)
+                    if match:
+                        sibling_name = match[1]
+                        gender = match[2]
+                    else:
+                        raise ParseError("Sibling name must have gender indication.")
+
+                    sibling = Person(gender=gender,
+                                     names=Name(name_type="unknown", name_parts={"given": sibling_name,
+                                                                                 "surname": recorded_name["surname"]}),
+                                     sources=source)
                 # TODO parse the semicolons, create Persons, potentially nameless parents, and
-                #  parent-child Relations
-                pass
+                #  parent-child Relations. This is a mess...
 
             if row["spouse"]:
                 if decedent.gender == "m":
@@ -335,7 +368,7 @@ def import_deaths(filename, thesaurus):
                     decedent_marriage = Relationship(decedent.identifier, spouse.identifier, "spouse",
                                                      sources=source)
                 else:
-                    spouse = Person(gender="m", names=Name())
+                    spouse = Person(gender="m")
                     if row["spouse_surname"]:
                         # TODO this means the spouse remarried. Ugh.
                         pass
@@ -344,17 +377,32 @@ def import_deaths(filename, thesaurus):
 
             if row["widow(er)"]:
                 if spouse:
-                    # TODO add death date to spouse
-                    pass
+                    spouse.add_fact(Fact(fact_type="death", date=Date(death_date.start-maximum_age, death_date.end),
+                                         sources=source))
                 else:
-                    # TODO There is no spouse, but now we know something about their death date, so we
-                    #  will need to create a no-name spouse.
-                    pass
+                    # create a no-name spouse to record the fact that they pre-deceased the decedent
+                    if decedent.gender == "m":
+                        spouse = Person(gender="f",
+                                        names=Name(name_type="married",
+                                                   name_parts={"surname": recorded_name["surname"]},
+                                                   thesaurus=thesaurus))
+
+                        decedent_marriage = Relationship(decedent.identifier, spouse.identifier, "spouse",
+                                                         sources=source)
+                    else:
+                        spouse = Person(gender="m")
+                        decedent_marriage = Relationship(spouse.identifier, decedent.identifier, "spouse",
+                                                         sources=source)
+                    spouse.add_fact(Fact(fact_type="death", date=Date(death_date.start - maximum_age,
+                                                                      death_date.end),
+                                         sources=source))
 
             if row["years_married"]:
-                # TODO subtract the duration from the death/burial date to estimate a marriage date, and
-                #  add that as a Fact to decedent_marriage
-                pass
+                decedent_marriage.add_fact(
+                    Fact(fact_type="marriage",
+                         date=Date(subtract(death_date,
+                                            Duration(duration_list=[int(row["years_married"]), 0, 0, 0]))),
+                         sources=source))
 
             # TODO now do it all over again for the second marriage, if there is one
 
