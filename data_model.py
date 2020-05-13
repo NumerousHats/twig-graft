@@ -54,7 +54,10 @@ class Statement:
         return json.dumps(self.json_dict())
 
     def json_dict(self):
-        return {"notes": self.notes, "confidence": self.confidence}
+        out = {"confidence": self.confidence}
+        if self.notes and self.notes != [None]:
+            out["notes"] = self.notes
+        return out
 
     def add_note(self, note):
         if self.notes is None:
@@ -184,11 +187,11 @@ class Name(Conclusion):
     """
     __name_order = ["prefix", "given", "surname", "suffix", "house"]
 
-    def __init__(self, name_type=None, name_parts=None, date=None,
-                 sources=None, notes=None, confidence="normal", thesaurus=None):
+    def __init__(self, name_type, name_parts, date=None, sources=None, notes=None,
+                 confidence="normal", thesaurus=None):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.name_type = name_type
-        self.name_parts = name_parts
+        self.name_parts = {k: v for k, v in name_parts.items() if v is not None}
         self.date = date
         self.standard_given = None
         self.standard_surname = None
@@ -649,10 +652,10 @@ def subtract(date, duration):
     else:
         raise ValueError("illegal precision value in Duration")
 
-    newdate = Date(start, end)
+    new_date = Date(start, end)
     if date.confidence == "low" or duration.confidence == "low" or duration.year_day_ambiguity:
-        newdate.confidence = "low"
+        new_date.confidence = "low"
     else:
-        newdate.confidence = "calculated"
+        new_date.confidence = "calculated"
 
-    return newdate
+    return new_date

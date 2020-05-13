@@ -2,6 +2,7 @@ import logging
 import csv
 import re
 import calendar
+import json
 
 from data_model import *
 
@@ -40,33 +41,31 @@ def parse_comma_name(name_string):
         name_string (str): The input string to be parsed.
 
     Returns:
-        surname (str or None): The surname.
-        given (str or None): The given name.
+        A dict suitable for passing to Name(name_parts).
 
     >>> parse_comma_name("Doe, John")
-    ("Doe", "John")
+    {"surname": "Doe", "given": "John"}
     >>> parse_comma_name("Doe")
-    ("Doe", None)
+    {"surname": "Doe"}
     >>> parse_comma_name(", John")
-    (None, "John")
+    {"given": "John"}
     """
 
+    output = {}
     parts = name_string.split(',')
     
     if len(parts) == 1:
-        surname = parts[0].strip()
-        given = None
+        output["surname"] = parts[0].strip()
     elif len(parts) == 2:
         if parts[0] == "":
-            surname = None
-            given = parts[1].strip()
+            output["given"] = parts[1].strip()
         else:
-            surname = parts[0].strip()
-            given = parts[1].strip()
+            output["surname"] = parts[0].strip()
+            output["given"] = parts[1].strip()
     else:
         raise ParseError("couldn't parse name {}".format(name_string))
 
-    return surname, given
+    return output
 
 
 def parse_name(surname_col, given_col):
@@ -189,6 +188,7 @@ class DeathRecord:
         self.parent_rel = None
         self.mf = None
         self.m_mf_rel = None
+        self.mm_mf_rel = None
         self.mm = None
         self.m_mm_rel = None
         self.mmf = None
@@ -202,18 +202,27 @@ class DeathRecord:
         self.logger = logging.getLogger("twig_graft")
         self.maximum_age = datetime.timedelta(days=365 * 110)
 
-    def add_fact(self, person, fact, fields):
-        """Add a Fact, along with any associated notes and confidence values, to a Person.
+    def __repr__(self):
+        all_people = [self.decedent, self.father, self.mother, self.mf, self.mm, self.mmf, self.spouse]
+        all_relations = [self.decedent_marriage, self.father_rel, self.m_mf_rel, self.m_mm_rel, self.mm_mmf_rel,
+                         self.mother_rel, self.parent_rel]
+
+        people_json = [x.json_dict() for x in all_people if x]
+        relations_json = [x.json_dict() for x in all_relations if x]
+        return json.dumps({"people": people_json, "relations": relations_json}, indent=2)
+
+    def add_annotated_fact(self, person, fact, fields):
+        """Add a Fact, along with any associated notes and confidence values, to a Person or Relationship.
 
         Args:
-            person (Person): The Person object to which the Fact is to be added.
+            person (Person or Relationship): The object to which the Fact is to be added.
             fact (Fact): The Fact to be added.
             fields (list of str): The names of the record columns that are relevant to that fact.
         """
         person.add_fact(
             add_notes_confidence(fact, self.notes, self.confidence, fields))
 
-    def add_name(self, person, name, fields):
+    def add_annotated_name(self, person, name, fields):
         """Add a Name, along with any associated notes and confidence values, to a Person.
 
         Args:
@@ -247,13 +256,14 @@ class DeathRecord:
         if self.decedent.gender == "m" or (self.decedent.gender == "f" and
                                            (married is False or too_young_to_be_married)):
             if self.recorded_name:
-                self.add_name(self.decedent,
-                              Name(name_type="birth", name_parts=self.recorded_name, thesaurus=self.thesaurus),
-                              ["surname", "given_name"])
+                self.add_annotated_name(self.decedent,
+                                        Name(name_type="birth", name_parts=self.recorded_name,
+                                             thesaurus=self.thesaurus),
+                                        ["surname", "given_name"])
             if aka_name:
-                self.add_name(self.decedent,
-                              Name(name_type="also_known_as", name_parts=aka_name, thesaurus=self.thesaurus),
-                              ["surname", "given_name"])
+                self.add_annotated_name(self.decedent,
+                                        Name(name_type="also_known_as", name_parts=aka_name, thesaurus=self.thesaurus),
+                                        ["surname", "given_name"])
             return
 
         # deal with potentially name-changing females
@@ -262,36 +272,36 @@ class DeathRecord:
             this_name = self.recorded_name.copy()
             this_name['surname'] = maiden_surname
             this_name['house_name'] = None
-            self.add_name(self.decedent,
-                          Name(name_type="birth", name_parts=this_name, thesaurus=self.thesaurus),
-                          ["maiden_name", "given_name"])
+            self.add_annotated_name(self.decedent,
+                                    Name(name_type="birth", name_parts=this_name, thesaurus=self.thesaurus),
+                                    ["maiden_name", "given_name"])
 
         if married is True:
-            self.add_name(self.decedent,
-                          Name(name_type="married", name_parts=self.recorded_name, thesaurus=self.thesaurus),
-                          ["surname", "given_name"])
+            self.add_annotated_name(self.decedent,
+                                    Name(name_type="married", name_parts=self.recorded_name, thesaurus=self.thesaurus),
+                                    ["surname", "given_name"])
 
         if married is None:
-            self.add_name(self.decedent,
-                          Name(name_type="unknown", name_parts=self.recorded_name, thesaurus=self.thesaurus),
-                          ["surname", "given_name"])
+            self.add_annotated_name(self.decedent,
+                                    Name(name_type="unknown", name_parts=self.recorded_name, thesaurus=self.thesaurus),
+                                    ["surname", "given_name"])
 
     def set_birth_death(self, death_date_col, burial_date_col, year_col, birth_year_col):
         if death_date_col:
             self.death_date = parse_date(death_date_col, year_col)
-            self.add_fact(self.decedent,
-                          Fact(fact_type="Death", date=self.death_date, age=self.age,
-                               locations=self.location, sources=self.source),
-                          ["death_date", "year"])
+            self.add_annotated_fact(self.decedent,
+                                    Fact(fact_type="Death", date=self.death_date, age=self.age,
+                                         locations=self.location, sources=self.source),
+                                    ["death_date", "year"])
         else:
             self.death_date = None
 
         if burial_date_col:
             burial_date = parse_date(burial_date_col, year_col)
-            self.add_fact(self.decedent,
-                          Fact(fact_type="Burial", date=burial_date, age=self.age,
-                               locations=self.location, sources=self.source),
-                          ["burial_date", "year"])
+            self.add_annotated_fact(self.decedent,
+                                    Fact(fact_type="Burial", date=burial_date, age=self.age,
+                                         locations=self.location, sources=self.source),
+                                    ["burial_date", "year"])
 
             if not self.death_date:
                 # We only know the burial date. Assume death occurred within the previous week.
@@ -299,30 +309,31 @@ class DeathRecord:
                                        burial_date.end,
                                        notes=["Death date unknown, estimated from burial date."],
                                        confidence="calculated")
-                self.add_fact(self.decedent,
-                              Fact(fact_type="Death", date=self.death_date, age=self.age,
-                                   locations=self.location, sources=self.source),
-                              ["death_date", "year"])
+                self.add_annotated_fact(self.decedent,
+                                        Fact(fact_type="Death", date=self.death_date, age=self.age,
+                                             locations=self.location, sources=self.source),
+                                        ["death_date", "year"])
         else:
             burial_date = None
 
         if self.death_date is None and burial_date is None:
             self.logger.error("Both death and burial dates missing. Nonstandard record?")
+            return
 
-        birth = Fact(fact_type="birth")
-        notes = self.death_date.notes.append("Birth date calculated from actual or estimated death date.")
-        birth.add_note(notes)
+        birth = Fact(fact_type="Birth", sources=self.source)
+
         birth_date = subtract(self.death_date, self.age)
-
         if birth_year_col:
             birth_year = int(birth_year_col)
             if birth_date.start < datetime.date(birth_year, 1, 1):
                 birth_date.start = datetime.date(birth_year, 1, 1)
             if birth_date.end > datetime.date(birth_year, 12, 31):
                 birth_date.end = datetime.date(birth_year, 12, 31)
+        else:
+            birth_date.add_note("Birth date calculated from actual or estimated death date.")
 
         birth.date = birth_date
-        self.add_fact(self.decedent, birth, ["birth_year"])
+        self.add_annotated_fact(self.decedent, birth, ["birth_year"])
 
     def set_parents(self, father_col, father_deceased, mother_col, mother_deceased):
         if father_col:
@@ -357,73 +368,89 @@ class DeathRecord:
                                           date=Date(self.death_date.start - self.maximum_age, self.death_date.end)))
 
         if self.father and self.mother:
-            self.parent_rel = Relationship(self.father.identifier, self.mother.identifier, "marriage",
+            self.parent_rel = Relationship(self.father.identifier, self.mother.identifier, "spouse",
                                            sources=self.source)
 
     def set_ancestors(self, mother, mothers_father, mothers_mother, mothers_mothers_father):
-        mf_given = None
-        mf_surname = None
         if mothers_father:
-            mf_surname, mf_given = parse_comma_name(mothers_father)
+            mf_name = parse_comma_name(mothers_father)
+        else:
+            mf_name = None
 
-        mmf_given = None
-        mmf_surname = None
         if mothers_mothers_father:
-            mmf_surname, mmf_given = parse_comma_name(mothers_mothers_father)
+            mmf_name = parse_comma_name(mothers_mothers_father)
+        else:
+            mmf_name = None
 
-        if mf_surname and mf_given:
-            self.mf = Person(gender="m",
-                                    names=Name(name_type="birth",
-                                               name_parts={"given": mf_given, "surname": mf_surname},
-                                               thesaurus=self.thesaurus),
-                                    sources=self.source)
+        if mf_name:
+            self.mf = Person(gender="m", sources=self.source)
+            self.add_annotated_name(self.mf, Name(name_type="birth", name_parts=mf_name, thesaurus=self.thesaurus),
+                                    ["mothers_father"])
             self.m_mf_rel = Relationship(self.mf.identifier, self.mother.identifier, "parent-child",
                                          sources=self.source)
 
         if mothers_mother:
-            self.mm = Person(gender="f",
-                             names=Name(name_type="married",
-                                        name_parts={"given": mothers_mother, "surname": mf_surname},
-                                        thesaurus=self.thesaurus),
-                             sources=self.source)
-            if mmf_surname:
-                self.mm.add_name(Name(name_type="birth",
-                                      name_parts={"given": mothers_mother, "surname": mmf_surname},
-                                      thesaurus=self.thesaurus))
+            self.mm = Person(gender="f", sources=self.source)
+            self.add_annotated_name(self.mm,
+                                    Name(name_type="married",
+                                         name_parts={"given": mothers_mother, "surname": mf_name["surname"]},
+                                         thesaurus=self.thesaurus),
+                                    ["mothers_mother", "mothers_father"])
+            if mmf_name and "surname" in mmf_name:
+                self.add_annotated_name(self.mm,
+                                        Name(name_type="birth",
+                                             name_parts={"given": mothers_mother, "surname": mmf_name["surname"]},
+                                             thesaurus=self.thesaurus),
+                                        ["mothers_mother", "mothers_mothers_father"])
             self.m_mm_rel = Relationship(self.mm.identifier, self.mother.identifier, "parent-child",
                                          sources=self.source)
 
-        if mmf_given:
-            self.mmf = Person(gender="m",
-                              names=Name(name_type="birth",
-                                         name_parts={"given": mmf_given, "surname": mmf_surname},
-                                         thesaurus=self.thesaurus),
-                              sources=self.source)
-            self.mm_mmf_rel = Relationship(mothers_mothers_father.identifier, mothers_mother.identifier,
+        if self.mm and self.mf:
+            self.mm_mf_rel = Relationship(self.mm.identifier, self.mf.identifier, "spouse", sources=self.source)
+
+        if mmf_name and "given" in mmf_name:
+            # i.e. only create a maternal grandfather Person if we know his given name
+
+            self.mmf = Person(gender="m", sources=self.source)
+            self.add_annotated_name(self.mmf, Name(name_type="birth", name_parts=mmf_name, thesaurus=self.thesaurus),
+                                    ["mothers_mothers_father"])
+            self.mm_mmf_rel = Relationship(self.mmf.identifier, self.mm.identifier,
                                            "parent-child", sources=self.source)
 
-        if mf_surname:
-            self.mother.add_name(Name(name_type="birth",
-                                 name_parts={"given": mother, "surname": mf_surname},
-                                 thesaurus=self.thesaurus))
+        if mf_name and "surname" in mf_name:
+            self.add_annotated_name(self.mother,
+                                    Name(name_type="birth",
+                                         name_parts={"given": mother, "surname": mf_name["surname"]},
+                                         thesaurus=self.thesaurus),
+                                    ["mother", "mothers_father"])
 
     def set_spouse(self, spouse_col, spouse_surname, spouse_deceased, years_married):
         if spouse_col:
             if self.decedent.gender == "m":
-                self.spouse = Person(gender="f", names=Name(name_type="married",
-                                                            name_parts={"given": spouse_col,
-                                                                        "surname": self.recorded_name["surname"]},
-                                                            sources=self.source, thesaurus=self.thesaurus))
+                self.spouse = Person(gender="f", sources=self.source)
+                self.add_annotated_name(self.spouse,
+                                        Name(name_type="married",
+                                             name_parts={"given": spouse_col,
+                                                         "surname": self.recorded_name["surname"]},
+                                             thesaurus=self.thesaurus),
+                                        ["spouse", "surname"])
                 if spouse_surname:
-                    self.spouse.add_name(Name(name_type="maiden",
-                                              name_parts={"given": spouse_col,
-                                                          "surname": spouse_surname},
-                                              sources=self.source, thesaurus=self.thesaurus))
+                    self.add_annotated_name(self.spouse,
+                                            Name(name_type="maiden",
+                                                 name_parts={"given": spouse_col,
+                                                             "surname": spouse_surname}, thesaurus=self.thesaurus),
+                                            ["spouse", "spouse_surname"])
 
                 self.decedent_marriage = Relationship(self.decedent.identifier, self.spouse.identifier, "spouse",
                                                       sources=self.source)
             else:
-                self.spouse = Person(gender="m")
+                self.spouse = Person(gender="m", sources=self.source)
+                self.add_annotated_name(self.spouse,
+                                        Name(name_type="birth",
+                                             name_parts={"given": spouse_col,
+                                                         "surname": self.recorded_name["surname"]},
+                                             thesaurus=self.thesaurus),
+                                        ["spouse", "surname"])
                 if spouse_surname:
                     # TODO this means the spouse remarried?
                     pass
@@ -432,16 +459,18 @@ class DeathRecord:
 
         if spouse_deceased:
             if self.spouse:
-                self.spouse.add_fact(Fact(fact_type="death",
+                self.spouse.add_fact(Fact(fact_type="Death",
                                           date=Date(self.death_date.start - self.maximum_age, self.death_date.end),
                                           sources=self.source))
             else:
                 # create a no-name spouse to record the fact that they pre-deceased the decedent
                 if self.decedent.gender == "m":
-                    self.spouse = Person(gender="f",
-                                         names=Name(name_type="married",
-                                                    name_parts={"surname": self.recorded_name["surname"]},
-                                                    thesaurus=self.thesaurus))
+                    self.spouse = Person(gender="f", sources=self.source)
+                    self.add_annotated_name(self.spouse,
+                                            Name(name_type="married",
+                                                 name_parts={"surname": self.recorded_name["surname"]},
+                                                 thesaurus=self.thesaurus),
+                                            ["surname"])
 
                     self.decedent_marriage = Relationship(self.decedent.identifier, self.spouse.identifier,
                                                           "spouse", sources=self.source)
@@ -449,16 +478,17 @@ class DeathRecord:
                     self.spouse = Person(gender="m")
                     self.decedent_marriage = Relationship(self.spouse.identifier, self.decedent.identifier,
                                                           "spouse", sources=self.source)
-                self.spouse.add_fact(Fact(fact_type="death", date=Date(self.death_date.start - self.maximum_age,
+                self.spouse.add_fact(Fact(fact_type="Death", date=Date(self.death_date.start - self.maximum_age,
                                                                        self.death_date.end),
                                           sources=self.source))
 
         if years_married:
-            self.decedent_marriage.add_fact(
-                Fact(fact_type="marriage",
-                     date=Date(subtract(self.death_date,
-                                        Duration(duration_list=[int(years_married), 0, 0, 0]))),
-                     sources=self.source))
+            self.add_annotated_fact(self.decedent_marriage,
+                                    Fact(fact_type="Marriage",
+                                         date=subtract(self.death_date,
+                                                       Duration(duration_list=[int(years_married), 0, 0, 0])),
+                                         sources=self.source),
+                                    ["death_date", "years_married"])
 
     def set_siblings(self, sibling_col):
         if sibling_col:
@@ -487,9 +517,7 @@ def import_deaths(filename, thesaurus):
     with open(filename) as csv_file:
         reader = csv.DictReader(csv_file, delimiter=',', quotechar='"')
         for row_num, row in enumerate(reader):
-            if row["surname"]:
-                surname = row["surname"]
-            else:
+            if not row["surname"]:
                 logger.info("Row {} has no surname and so is either empty or nonstandard. Skipping.".format(row_num))
                 continue
 
@@ -499,7 +527,9 @@ def import_deaths(filename, thesaurus):
             # print(row)
 
             notes, confidence = parse_notes(row)
-            # TODO need to add the above to the rest of the new objects
+            # TODO there are major problems with doing it this way, namely that there is no way to attach a
+            #  confidence to a single component of a multiple-component entry (e.g. one that has both a given
+            #  and a surname)
 
             # change empty strings to None
             # TODO do we really need this??
@@ -534,13 +564,15 @@ def import_deaths(filename, thesaurus):
             this_record.set_decedent_names(row["surname"], row["given_name"], is_married, row["maiden_name"])
 
             if row["coelebs"]:
-                this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=0))
+                this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=0, sources=source))
 
             if row["uxoratus"]:
-                this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=">0"))
+                this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=">0", sources=source))
 
             this_record.set_birth_death(row["death_date"], row["burial_date"], row["year"], row["birth_year"])
             this_record.set_parents(row["father"], row["father_deceased"], row["mother"], row["mother_deceased"])
+            this_record.set_ancestors(row["mother"], row["mothers_father"], row["mothers_mother"],
+                                      row["mothers_mothers_father"])
 
             # TODO deal with "mothers_spouse". This could be a mess...
 
@@ -548,6 +580,8 @@ def import_deaths(filename, thesaurus):
 
             this_record.set_spouse(row["spouse"], row["spouse_surname"], row["widow(er)"], row["years_married"])
 
-            if row["second_marriage"]:
-                this_record.set_spouse(row["spouse_2"], row["spouse_2_surname"],
-                                       row["widow(er)_2"], row["years_married_2"])
+            # if row["second_marriage"]:
+            #     this_record.set_spouse(row["spouse_2"], row["spouse_2_surname"],
+            #                            row["widow(er)_2"], row["years_married_2"])
+
+            print(repr(this_record))
