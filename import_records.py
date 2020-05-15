@@ -3,11 +3,16 @@ import csv
 import re
 import calendar
 import json
+import math
 
 from data_model import *
 
 
 class ParseError(Exception):
+    pass
+
+
+class InconsistentInputError(Exception):
     pass
 
 
@@ -203,13 +208,16 @@ class DeathRecord:
         self.maximum_age = datetime.timedelta(days=365 * 110)
 
     def __repr__(self):
+        return json.dumps(self.json(), indent=2)
+
+    def json(self):
         all_people = [self.decedent, self.father, self.mother, self.mf, self.mm, self.mmf, self.spouse]
-        all_relations = [self.decedent_marriage, self.father_rel, self.m_mf_rel, self.m_mm_rel, self.mm_mmf_rel,
-                         self.mother_rel, self.parent_rel]
+        all_relations = [self.decedent_marriage, self.father_rel, self.m_mf_rel, self.m_mm_rel, self.mm_mf_rel,
+                         self.mm_mmf_rel, self.mother_rel, self.parent_rel]
 
         people_json = [x.json_dict() for x in all_people if x]
         relations_json = [x.json_dict() for x in all_relations if x]
-        return json.dumps({"people": people_json, "relations": relations_json}, indent=2)
+        return {"people": people_json, "relations": relations_json}
 
     def add_annotated_fact(self, person, fact, fields):
         """Add a Fact, along with any associated notes and confidence values, to a Person or Relationship.
@@ -219,8 +227,11 @@ class DeathRecord:
             fact (Fact): The Fact to be added.
             fields (list of str): The names of the record columns that are relevant to that fact.
         """
-        person.add_fact(
-            add_notes_confidence(fact, self.notes, self.confidence, fields))
+        try:
+            person.add_fact(
+                add_notes_confidence(fact, self.notes, self.confidence, fields))
+        except AttributeError:
+            raise ParseError
 
     def add_annotated_name(self, person, name, fields):
         """Add a Name, along with any associated notes and confidence values, to a Person.
@@ -252,6 +263,10 @@ class DeathRecord:
         too_young_to_be_married = self.age.duration < datetime.timedelta(days=13) or \
                                   (self.age.duration < datetime.timedelta(days=365*13)
                                    and not self.age.year_day_ambiguity)
+
+        if too_young_to_be_married and (married or maiden_surname):
+            self.logger.error("Marital status inconsistent with age.")
+            raise InconsistentInputError
 
         if self.decedent.gender == "m" or (self.decedent.gender == "f" and
                                            (married is False or too_young_to_be_married)):
@@ -393,13 +408,15 @@ class DeathRecord:
             self.mm = Person(gender="f", sources=self.source)
             self.add_annotated_name(self.mm,
                                     Name(name_type="married",
-                                         name_parts={"given": mothers_mother, "surname": mf_name["surname"]},
+                                         name_parts={"given": mothers_mother,
+                                                     "surname": mf_name.get("surname", None)},
                                          thesaurus=self.thesaurus),
                                     ["mothers_mother", "mothers_father"])
             if mmf_name and "surname" in mmf_name:
                 self.add_annotated_name(self.mm,
                                         Name(name_type="birth",
-                                             name_parts={"given": mothers_mother, "surname": mmf_name["surname"]},
+                                             name_parts={"given": mothers_mother,
+                                                         "surname": mmf_name.get("surname", None)},
                                              thesaurus=self.thesaurus),
                                         ["mothers_mother", "mothers_mothers_father"])
             self.m_mm_rel = Relationship(self.mm.identifier, self.mother.identifier, "parent-child",
@@ -436,7 +453,7 @@ class DeathRecord:
                                         ["spouse", "surname"])
                 if spouse_surname:
                     self.add_annotated_name(self.spouse,
-                                            Name(name_type="maiden",
+                                            Name(name_type="birth",
                                                  name_parts={"given": spouse_col,
                                                              "surname": spouse_surname}, thesaurus=self.thesaurus),
                                             ["spouse", "spouse_surname"])
@@ -483,12 +500,38 @@ class DeathRecord:
                                           sources=self.source))
 
         if years_married:
-            self.add_annotated_fact(self.decedent_marriage,
-                                    Fact(fact_type="Marriage",
-                                         date=subtract(self.death_date,
-                                                       Duration(duration_list=[int(years_married), 0, 0, 0])),
-                                         sources=self.source),
-                                    ["death_date", "years_married"])
+            years_married_frac, years_married_int = math.modf(float(years_married))
+            months_married = years_married_frac*12
+            if months_married.is_integer():
+                duration_list = [years_married_int, months_married, 0, 0]
+            else:
+                self.logger.warning("Fractional years_married is not an even number of months.")
+                duration_list = [years_married_int, round(months_married), 0, 0]
+
+            if self.spouse:
+                self.add_annotated_fact(self.decedent_marriage,
+                                        Fact(fact_type="Marriage",
+                                             date=subtract(self.death_date,
+                                                           Duration(duration_list=duration_list)),
+                                             sources=self.source),
+                                        ["death_date", "years_married"])
+            else:
+                self.spouse = Person(sources=self.source)
+                if self.decedent.gender == "m":
+                    self.spouse.gender = "f"
+                    self.decedent_marriage = Relationship(self.decedent.identifier, self.spouse.identifier,
+                                                          "spouse", sources=self.source)
+                else:
+                    self.spouse.gender = "m"
+                    self.decedent_marriage = Relationship(self.spouse.identifier, self.decedent.identifier,
+                                                          "spouse", sources=self.source)
+
+                self.add_annotated_fact(self.decedent_marriage,
+                                        Fact(fact_type="Marriage",
+                                             date=subtract(self.death_date,
+                                                           Duration(duration_list=duration_list)),
+                                             sources=self.source),
+                                        ["death_date", "years_married"])
 
     def set_siblings(self, sibling_col):
         if sibling_col:
@@ -517,14 +560,15 @@ def import_deaths(filename, thesaurus):
     with open(filename) as csv_file:
         reader = csv.DictReader(csv_file, delimiter=',', quotechar='"')
         for row_num, row in enumerate(reader):
-            if not row["surname"]:
-                logger.info("Row {} has no surname and so is either empty or nonstandard. Skipping.".format(row_num))
-                continue
-
             source = Source(repository=row["repository"], volume=row["book"], page_number=row["page"],
                             entry_number=row["entry"], image_file=row["image"])
+            logger.debug("Doing {}".format(source))
 
-            # print(row)
+            if not row["surname"]:
+                logger.info(
+                    "Row {} ({}) has no surname and so is either empty or nonstandard. Skipping.".format(row_num,
+                                                                                                         source))
+                continue
 
             notes, confidence = parse_notes(row)
             # TODO there are major problems with doing it this way, namely that there is no way to attach a
@@ -556,32 +600,33 @@ def import_deaths(filename, thesaurus):
 
             if row["coelebs"]:
                 is_married = False
+                this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=0, sources=source))
             elif row["uxoratus"] or row["spouse"] or row["maiden_name"] or row["widow(er)"]:
                 is_married = True
             else:
                 is_married = None
 
-            this_record.set_decedent_names(row["surname"], row["given_name"], is_married, row["maiden_name"])
-
-            if row["coelebs"]:
-                this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=0, sources=source))
-
             if row["uxoratus"]:
                 this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=">0", sources=source))
 
-            this_record.set_birth_death(row["death_date"], row["burial_date"], row["year"], row["birth_year"])
-            this_record.set_parents(row["father"], row["father_deceased"], row["mother"], row["mother_deceased"])
-            this_record.set_ancestors(row["mother"], row["mothers_father"], row["mothers_mother"],
-                                      row["mothers_mothers_father"])
+            try:
+                this_record.set_decedent_names(row["surname"], row["given_name"], is_married, row["maiden_name"])
+                this_record.set_birth_death(row["death_date"], row["burial_date"], row["year"], row["birth_year"])
+                this_record.set_parents(row["father"], row["father_deceased"], row["mother"], row["mother_deceased"])
+                this_record.set_ancestors(row["mother"], row["mothers_father"], row["mothers_mother"],
+                                          row["mothers_mothers_father"])
 
-            # TODO deal with "mothers_spouse". This could be a mess...
+                # TODO deal with "mothers_spouse". This could be a mess...
 
-            # this_record.set_siblings(row["sibling"])
+                # this_record.set_siblings(row["sibling"])
 
-            this_record.set_spouse(row["spouse"], row["spouse_surname"], row["widow(er)"], row["years_married"])
+                this_record.set_spouse(row["spouse"], row["spouse_surname"], row["widow(er)"], row["years_married"])
 
-            # if row["second_marriage"]:
-            #     this_record.set_spouse(row["spouse_2"], row["spouse_2_surname"],
-            #                            row["widow(er)_2"], row["years_married_2"])
+                # if row["second_marriage"]:
+                #     this_record.set_spouse(row["spouse_2"], row["spouse_2_surname"],
+                #                            row["widow(er)_2"], row["years_married_2"])
+            except (ParseError, InconsistentInputError):
+                logger.error("Row {} ({}) has inconsistent or malformed input".format(row_num, source))
+                continue
 
             print(repr(this_record))
