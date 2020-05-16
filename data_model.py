@@ -230,7 +230,7 @@ class Person(Conclusion):
     """A description of a person.
 
     Attributes:
-        names (list of Name): The name(s) of the person. A person can have only one "birth" and one "married" name.
+        names (list of Name): The name(s) of the person. A person can have only one "birth" name.
         gender (str): The sex of the person.
         facts (list of Fact): Fact(s) regarding the person.
         identifier (str): A unique internal identifier for this person.
@@ -247,8 +247,6 @@ class Person(Conclusion):
             if type(names) is list:
                 if len([n for n in names if n.name_type == "birth"]) > 1:
                     raise ValueError("a Person can only have one birth Name")
-                if len([n for n in names if n.name_type == "married"]) > 1:
-                    raise ValueError("a Person can only have one married Name")
                 self.names = names
             elif type(names) is Name:
                 self.names = [names]
@@ -295,8 +293,6 @@ class Person(Conclusion):
             self.names.append(name)
             if len([n for n in self.names if n.name_type == "birth"]) > 1:
                 raise ValueError("a Person can only have one birth Name")
-            if len([n for n in self.names if n.name_type == "married"]) > 1:
-                raise ValueError("a Person can only have one married Name")
 
     def summarize(self):
         """A longer-form text summary of a Person object."""
