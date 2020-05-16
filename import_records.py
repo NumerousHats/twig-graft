@@ -4,6 +4,7 @@ import re
 import calendar
 import json
 import math
+from abc import ABC, abstractmethod
 
 from data_model import *
 
@@ -173,7 +174,17 @@ def add_notes_confidence(statement, notes, confidence, fields):
     return statement
 
 
-class DeathRecord:
+class Record(ABC):
+    @abstractmethod
+    def people(self):
+        pass
+
+    @abstractmethod
+    def relations(self):
+        pass
+
+
+class DeathRecord(Record):
     def __init__(self, age, thesaurus, source, location, notes, confidence):
         self.age = age
         self.thesaurus = thesaurus
@@ -210,13 +221,18 @@ class DeathRecord:
     def __repr__(self):
         return json.dumps(self.json(), indent=2)
 
-    def json(self):
+    def people(self):
         all_people = [self.decedent, self.father, self.mother, self.mf, self.mm, self.mmf, self.spouse]
+        return [x for x in all_people if x]
+
+    def relations(self):
         all_relations = [self.decedent_marriage, self.father_rel, self.m_mf_rel, self.m_mm_rel, self.mm_mf_rel,
                          self.mm_mmf_rel, self.mother_rel, self.parent_rel]
+        return [x for x in all_relations if x]
 
-        people_json = [x.json_dict() for x in all_people if x]
-        relations_json = [x.json_dict() for x in all_relations if x]
+    def json(self):
+        people_json = [x.json_dict() for x in self.people()]
+        relations_json = [x.json_dict() for x in self.relations()]
         return {"people": people_json, "relations": relations_json}
 
     def add_annotated_fact(self, person, fact, fields):
@@ -553,7 +569,7 @@ class DeathRecord:
             #  parent-child Relations. This is a mess...
 
 
-def import_deaths(filename, thesaurus):
+def import_deaths(filename, graph, thesaurus):
     logger = logging.getLogger("twig_graft")
     logger.debug("importing {}".format(filename))
 
@@ -618,10 +634,11 @@ def import_deaths(filename, thesaurus):
 
                 # TODO deal with "mothers_spouse". This could be a mess...
 
-                # this_record.set_siblings(row["sibling"])
+                # TODO this_record.set_siblings(row["sibling"])
 
                 this_record.set_spouse(row["spouse"], row["spouse_surname"], row["widow(er)"], row["years_married"])
 
+                # TODO deal with second marriage
                 # if row["second_marriage"]:
                 #     this_record.set_spouse(row["spouse_2"], row["spouse_2_surname"],
                 #                            row["widow(er)_2"], row["years_married_2"])
@@ -629,4 +646,4 @@ def import_deaths(filename, thesaurus):
                 logger.error("Row {} ({}) has inconsistent or malformed input".format(row_num, source))
                 continue
 
-            print(repr(this_record))
+            graph.append(this_record)

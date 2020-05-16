@@ -3,6 +3,7 @@ import logging.config
 import csv
 
 import import_records
+import graph_model
 
 
 def main():
@@ -14,7 +15,7 @@ def main():
         handlers={
             'h': {'class': 'logging.StreamHandler',
                   'formatter': 'f',
-                  'level': logging.DEBUG}
+                  'level': logging.INFO}
         },
         root={
             'handlers': ['h'],
@@ -35,7 +36,9 @@ def main():
         for row in reader:
             thesaurus[row["raw"]] = row["standardized"]
 
-    import_records.import_deaths('test.csv', thesaurus)
+    the_graph = graph_model.PeopleGraph()
+    import_records.import_deaths('test.csv', the_graph, thesaurus)
+    the_graph.summarize()
 
 
 if __name__ == "__main__":
