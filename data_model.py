@@ -29,6 +29,7 @@ import datetime
 import uuid
 import logging
 import json
+from collections import defaultdict
 
 
 class Statement:
@@ -219,11 +220,16 @@ class Name(Conclusion):
         output.update(super().json_dict())
         return output
 
+    def str_terse(self):
+        if self.standard_given and self.standard_surname:
+            return "{} {}".format(self.standard_given, self.standard_surname)
+        else:
+            output = [self.name_parts[x] for x in Name.__name_order
+                      if x in self.name_parts and self.name_parts[x] is not None]
+            return " ".join(output)
+
     def __str__(self):
-        output = [self.name_parts[x] for x in Name.__name_order
-                  if x in self.name_parts and self.name_parts[x] is not None]
-        output.append("({})".format(self.name_type))
-        return " ".join(output)
+        return self.str_terse() + "({})".format(self.name_type)
 
 
 class Person(Conclusion):
@@ -273,9 +279,26 @@ class Person(Conclusion):
         return output
 
     def __str__(self):
-        pass
-        # TODO maybe something vaguely like
-        #       "Anna Bobak (nee Andrec), born 1801-02-03, married 1819-01-02, died/buried 1859-06-07"
+        facts = self.get_facts()
+        names = self.get_names()
+        output = [self.identifier[:7]]
+        if names["unknown"]:
+            output.append(names["unknown"][0].str_terse())
+        else:
+            if names["birth"]:
+                output.append(names["birth"][0].str_terse())
+
+        if names["married"]:
+            married_names = [x.name_parts["surname"] for x in names["married"] if x.name_parts["surname"]]
+            output.append("({})".format(", ".join(married_names)))
+
+        if facts["Birth"]:
+            output.append("B {}".format(facts["Birth"][0].date))
+
+        if facts["Death"]:
+            output.append("D {}".format(facts["Death"][0].date))
+
+        return " ".join(output)
 
     def add_fact(self, fact):
         if self.facts is None:
@@ -307,12 +330,19 @@ class Person(Conclusion):
 
         return "".join(output)
 
-    def get_name(self, name_type):
-        """Extract Name of a particular type, if it exists. Return None if nonexistent.
+    def get_names(self):
+        out = defaultdict(list)
+        if self.names:
+            for name in self.names:
+                out[name.name_type].append(name)
+        return out
 
-        Only returns the first occurrence if there is more than one.
-        """
-        return next((n for n in self.names if n.name_type == name_type), None)
+    def get_facts(self):
+        out = defaultdict(list)
+        if self.facts:
+            for fact in self.facts:
+                out[fact.fact_type].append(fact)
+        return out
 
 
 class Relationship(Conclusion):
@@ -455,10 +485,10 @@ class Date(Statement):
         if self.start == self.end:
             output = self.start.isoformat()
         else:
-            output = 'between {} and {}'.format(self.start.isoformat(), self.end.isoformat())
+            output = '{} to {}'.format(self.start.isoformat(), self.end.isoformat())
 
-        if self.confidence:
-            output = output + '({} confidence)'.format(self.confidence)
+        if self.confidence != "normal":
+            output = output + ' ({})'.format(self.confidence)
 
         return output
 
