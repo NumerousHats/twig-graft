@@ -177,11 +177,11 @@ def add_notes_confidence(statement, notes, confidence, fields):
 class Record(ABC):
     @abstractmethod
     def people(self):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def relations(self):
-        pass
+        raise NotImplementedError
 
 
 class DeathRecord(Record):
@@ -274,6 +274,10 @@ class DeathRecord(Record):
 
         if stillbirth:
             self.decedent.add_fact(Fact(fact_type="Stillbirth", sources=self.source))
+            self.add_annotated_name(self.decedent,
+                                    Name(name_type="birth", name_parts={"surname": self.recorded_name["surname"]},
+                                         thesaurus=self.thesaurus),
+                                    ["surname", "given_name"])
             return
 
         too_young_to_be_married = self.age.duration < datetime.timedelta(days=13) or \
@@ -306,6 +310,12 @@ class DeathRecord(Record):
             self.add_annotated_name(self.decedent,
                                     Name(name_type="birth", name_parts=this_name, thesaurus=self.thesaurus),
                                     ["maiden_name", "given_name"])
+        else:
+            if "given" in self.recorded_name:
+                self.add_annotated_name(self.decedent,
+                                        Name(name_type="birth", name_parts={"given": self.recorded_name["given"]},
+                                             thesaurus=self.thesaurus),
+                                        ["given_name"])
 
         if married is True:
             self.add_annotated_name(self.decedent,
@@ -616,14 +626,14 @@ def import_deaths(filename, graph, thesaurus):
 
             if row["coelebs"]:
                 is_married = False
-                this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=0, sources=source))
+                this_record.decedent.add_fact(Fact(fact_type="Coelebs", sources=source))
             elif row["uxoratus"] or row["spouse"] or row["maiden_name"] or row["widow(er)"]:
                 is_married = True
             else:
                 is_married = None
 
             if row["uxoratus"]:
-                this_record.decedent.add_fact(Fact(fact_type="NumberOfMarriages", content=">0", sources=source))
+                this_record.decedent.add_fact(Fact(fact_type="Uxoratus", sources=source))
 
             try:
                 this_record.set_decedent_names(row["surname"], row["given_name"], is_married, row["maiden_name"])
@@ -646,4 +656,5 @@ def import_deaths(filename, graph, thesaurus):
                 logger.error("Row {} ({}) has inconsistent or malformed input".format(row_num, source))
                 continue
 
+            # print(this_record.decedent)
             graph.append(this_record)
