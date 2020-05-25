@@ -215,7 +215,7 @@ class DeathRecord(Record):
         self.spouse = None
         self.decedent_marriage = None
 
-        self.logger = logging.getLogger("twig_graft")
+        self.logger = logging.getLogger(__name__)
         self.maximum_age = datetime.timedelta(days=365 * 110)
 
     def __repr__(self):
@@ -580,7 +580,7 @@ class DeathRecord(Record):
 
 
 def import_deaths(filename, graph, thesaurus):
-    logger = logging.getLogger("twig_graft")
+    logger = logging.getLogger(__name__)
     logger.debug("importing {}".format(filename))
 
     with open(filename) as csv_file:

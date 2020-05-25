@@ -197,8 +197,9 @@ class Name(Conclusion):
         self.standard_given = None
         self.standard_surname = None
 
+        logger = logging.getLogger(__name__)
+
         if thesaurus:
-            logger = logging.getLogger("twig_graft")
             if "given" in self.name_parts.keys():
                 try:
                     self.standard_given = thesaurus[self.name_parts["given"]]
