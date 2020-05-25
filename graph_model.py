@@ -1,4 +1,5 @@
 import networkx as nx
+from import_records import Record
 
 
 class PeopleGraph:
@@ -7,7 +8,7 @@ class PeopleGraph:
         self.people = {}
         # TODO this should eventually include ability to import saved graph databases from JSON
 
-    def append(self, record):
+    def append(self, record: Record):
         self.people = {p.identifier: p for p in record.people()}
         relations = [(rel.from_id, rel.to_id, {"relation": rel}) for rel in record.relations()]
         self.graph.add_nodes_from(self.people.keys())
@@ -16,4 +17,4 @@ class PeopleGraph:
     def summarize(self):
         print("{} nodes, {} edges, {} components".format(self.graph.number_of_nodes(),
                                                          self.graph.number_of_edges(),
-                                                         nx.number_strongly_connected_components(self.graph)))
+                                                         nx.number_weakly_connected_components(self.graph)))

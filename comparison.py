@@ -37,3 +37,39 @@ def compare_date(date1, date2):
         pass
 
 
+def thing_match(thing1, thing2, total_count, total_comp):
+    if thing1 is None or thing2 is None:
+        return 0, total_count, total_comp
+
+    if thing1 == thing2:
+        return 1, total_count+1, total_comp+1
+    else:
+        return None, total_count, total_comp+1
+
+
+def compare_person(person1: Person, person2: Person):
+    """Calculate the posterior probability that two Person objects are the same person-in-real-life.
+    """
+    matches = 0
+    comparisons = 0
+
+    val, matches, comparisons = thing_match(person1.gender, person2.gender, matches, comparisons)
+    if val is None:
+        return 0
+
+    birth_name1 = [x for x in person1.names if x.name_type == "birth"][0]
+    birth_name2 = [x for x in person2.names if x.name_type == "birth"][0]
+
+    val, matches, comparisons = thing_match(birth_name1.standard_given,
+                                            birth_name2.standard_given, matches, comparisons)
+    if val is None:
+        return 0
+
+    val, matches, comparisons = thing_match(birth_name1.standard_surname,
+                                            birth_name2.standard_surname, matches, comparisons)
+    if val is None:
+        return 0
+
+    # deal with "unknown" name type
+
+    # points of comparison: gender, names, lifespan, marital status, associated house numbers
