@@ -23,6 +23,7 @@ def main():
     the_graph = graph_model.PeopleGraph()
     import_records.import_deaths('test.csv', the_graph, thesaurus)
     the_graph.summarize()
+    the_graph.all_vs_all()
 
 
 if __name__ == "__main__":

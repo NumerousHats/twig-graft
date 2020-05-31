@@ -310,12 +310,6 @@ class DeathRecord(Record):
             self.add_annotated_name(self.decedent,
                                     Name(name_type="birth", name_parts=this_name, thesaurus=self.thesaurus),
                                     ["maiden_name", "given_name"])
-        else:
-            if "given" in self.recorded_name:
-                self.add_annotated_name(self.decedent,
-                                        Name(name_type="birth", name_parts={"given": self.recorded_name["given"]},
-                                             thesaurus=self.thesaurus),
-                                        ["given_name"])
 
         if married is True:
             self.add_annotated_name(self.decedent,
@@ -427,8 +421,9 @@ class DeathRecord(Record):
             self.mf = Person(gender="m", sources=self.source)
             self.add_annotated_name(self.mf, Name(name_type="birth", name_parts=mf_name, thesaurus=self.thesaurus),
                                     ["mothers_father"])
-            self.m_mf_rel = Relationship(self.mf.identifier, self.mother.identifier, "parent-child",
-                                         sources=self.source)
+            if self.mother:
+                self.m_mf_rel = Relationship(self.mf.identifier, self.mother.identifier, "parent-child",
+                                             sources=self.source)
 
         if mothers_mother:
             self.mm = Person(gender="f", sources=self.source)
@@ -460,7 +455,7 @@ class DeathRecord(Record):
             self.mm_mmf_rel = Relationship(self.mmf.identifier, self.mm.identifier,
                                            "parent-child", sources=self.source)
 
-        if mf_name and "surname" in mf_name:
+        if mf_name and "surname" in mf_name and self.mother:
             self.add_annotated_name(self.mother,
                                     Name(name_type="birth",
                                          name_parts={"given": mother, "surname": mf_name["surname"]},
@@ -581,7 +576,7 @@ class DeathRecord(Record):
 
 def import_deaths(filename, graph, thesaurus):
     logger = logging.getLogger(__name__)
-    logger.debug("importing {}".format(filename))
+    # logger.debug("importing {}".format(filename))
 
     with open(filename) as csv_file:
         reader = csv.DictReader(csv_file, delimiter=',', quotechar='"')

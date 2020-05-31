@@ -39,22 +39,29 @@ def compare_date(date1, date2):
 
 def thing_match(thing1, thing2, total_count, total_comp):
     if thing1 is None or thing2 is None:
-        return 0, total_count, total_comp
+        return None, total_count, total_comp
 
     if thing1 == thing2:
-        return 1, total_count+1, total_comp+1
+        return True, total_count+1, total_comp+1
     else:
-        return None, total_count, total_comp+1
+        return False, total_count, total_comp+1
 
 
 def compare_person(person1: Person, person2: Person):
     """Calculate the posterior probability that two Person objects are the same person-in-real-life.
     """
+    logger = logging.getLogger(__name__)
     matches = 0
     comparisons = 0
+    logger.debug("comparing %s to %s", person1, person2)
+
+    if person1.has_fact("Stillbirth") or person2.has_fact("Stillbirth"):
+        logger.debug("Stillbirth")
+        return 0
 
     val, matches, comparisons = thing_match(person1.gender, person2.gender, matches, comparisons)
-    if val is None:
+    if val is False:
+        logger.debug("Gender mismatch")
         return 0
 
     birth_name1 = [x for x in person1.names if x.name_type == "birth"][0]
@@ -62,12 +69,14 @@ def compare_person(person1: Person, person2: Person):
 
     val, matches, comparisons = thing_match(birth_name1.standard_given,
                                             birth_name2.standard_given, matches, comparisons)
-    if val is None:
+    if val is False:
+        logger.debug("Birth name given mismatch")
         return 0
 
     val, matches, comparisons = thing_match(birth_name1.standard_surname,
                                             birth_name2.standard_surname, matches, comparisons)
-    if val is None:
+    if val is False:
+        logger.debug("Birth name surname mismatch")
         return 0
 
     # deal with "unknown" name type

@@ -345,6 +345,9 @@ class Person(Conclusion):
                 out[fact.fact_type].append(fact)
         return out
 
+    def has_fact(self, fact):
+        return fact in self.get_facts().keys()
+
 
 class Relationship(Conclusion):
     """A description of a relationship between two Persons.
