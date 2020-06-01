@@ -367,7 +367,7 @@ class DeathRecord(Record):
         else:
             birth_date.add_note("Birth date calculated from actual or estimated death date.")
 
-        birth.date = birth_date
+        birth.date.append(birth_date)
         self.add_annotated_fact(self.decedent, birth, ["birth_year"])
 
     def set_parents(self, father_col, father_deceased, mother_col, mother_deceased):

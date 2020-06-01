@@ -111,37 +111,56 @@ class Fact(Conclusion):
 
     Attributes:
         fact_type (str): The type of Fact. Should correspond to one of the Gedcom X Known Fact Types.
-        content (str or int): Any string or numerical content associated with the fact. For example,
+        content (str or int or None): Any string or numerical content associated with the fact. For example,
             in a "MaritalStatus" fact, the fact_content would be one of "Single", "Married", "Widowed", or
-            "Divorced". For "NumberOfMarriages" or "NumberOfChildren", this could be an integer, or a marker
-            like ">0" (if, say, the person is know to have had children, but the number is unknown).
-        date (Date): The date or date range associated with the fact. Date ranges are used to
-            denote precision (e.g. an event that took place in 1862 but for which we do not have a recorded
-            month or year should have a Date that spans the range 1862-01-01 to 1862-12-31). Issues related
-            to accuracy (e.g. handwriting issues, possible typos) should be indicated through
-            Conclusion.confidence.
-        age (Duration): The age of the individual at the time of the Fact.
-        locations (list of Location): The Location(s) associated with this Fact took place (may be more
+            "Divorced". For "NumberOfMarriages" or "NumberOfChildren", this would be an integer.
+        date (list of Date): The date(s) or date range(s) associated with the fact. Date ranges are used to
+            denote precision, e.g. an event that took place in 1862 but for which we do not have a recorded
+            month or year should be Date("1862-01-01", "1862-12-31"). If the confidence level
+            is normal, then this attribute should be a list containing only one Date element. If there
+            are issues related to confidence or accuracy (e.g ambiguity related handwriting issues,
+            possible typos, or year-day ambiguity in death records), then the list should contain multiple elements
+            arranged in order from the most likely to the least likely.
+        age (list of Duration): The age of the individual at the time of the Fact. If the confidence level
+            is normal, then this attribute should be a list containing only one Duration element. If there
+            are issues related to date confidence or accuracy (e.g ambiguity related handwriting issues or
+            possible typos), then the list should contain multiple elements arranged in order from the most likely
+            to the least likely.
+        locations (list of Location or None): The Location(s) associated with this Fact took place (may be more
             than one for a marriage).
+
+    Args:
+        date (Date or list of Date)
+        age (Duration or list of Duration)
     """
-    def __init__(self, fact_type=None, date=None, age=None, locations=None, content=None,
+    def __init__(self, fact_type, date=[], age=[], locations=None, content=None,
                  sources=None, notes=None, confidence="normal"):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.fact_type = fact_type
         self.content = content
-        self.date = date
-        self.age = age
+        if type(date) is Date:
+            self.date = [date]
+        else:
+            self.date = date
+
+        if type(age) is Duration:
+            self.age = [age]
+        else:
+            self.age = age
+
         if type(locations) is list or locations is None:
             self.locations = locations
         else:
             self.locations = [locations]
 
     def json_dict(self):
-        output = {"fact_type": self.fact_type, "content": self.content}
+        output = {"fact_type": self.fact_type}
+        if self.content:
+            output.update({"content": self.content})
         if self.age:
-            output.update({"age": self.age.json_dict()})
+            output.update({"age": [x.json_dict() for x in self.age]})
         if self.date:
-            output.update({"date": self.date.json_dict()})
+            output.update({"date": [x.json_dict() for x in self.date]})
         if self.locations:
             output.update({"locations": [x.json_dict() for x in self.locations]})
         output.update(super().json_dict())
@@ -476,8 +495,6 @@ class Date(Statement):
                     self.end = datetime.datetime.strptime(end_val, "%Y-%m-%d").date()
                 else:
                     self.end = datetime.date.max
-
-        self.confidence = confidence
 
     def json_dict(self):
         output = {"start": self.start.isoformat(), "end": self.end.isoformat(),

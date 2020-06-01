@@ -48,9 +48,7 @@ class TestDeath:
         record.decedent.gender = "f"
         record.set_decedent_names("Doe", "Jane", None, None)
         names = record.json()["people"][0]["names"]
-        assert names == [{'name_type': 'birth', 'name_parts': {'given': 'Jane'},
-                          'standard_surname': None, 'standard_given': None, 'confidence': 'normal'},
-                         {'name_type': 'unknown', 'name_parts': {'surname': 'Doe', 'given': 'Jane'},
+        assert names == [{'name_type': 'unknown', 'name_parts': {'surname': 'Doe', 'given': 'Jane'},
                           'standard_surname': None, 'standard_given': None, 'confidence': 'normal'}]
 
         record = DeathRecord(age=Duration(duration_list=[12, 0, 0, 0], year_day_ambiguity=False), thesaurus={},
@@ -66,19 +64,19 @@ class TestDeath:
                              source=None, location=None, notes={}, confidence={})
         record.set_birth_death("12-30", "1901-01-02", "1900", None)
         facts = record.json()["people"][0]["facts"]
-        assert facts == [{'fact_type': 'Death', 'content': None,
-                          'age': {'duration': [20, 0, 0, 0], 'confidence': 'normal',
-                                  'precision': 'year', 'year_day_ambiguity': 'False'},
-                          'date': {'start': '1900-12-30', 'end': '1900-12-30', 'confidence': 'normal'},
+        assert facts == [{'fact_type': 'Death',
+                          'age': [{'duration': [20, 0, 0, 0], 'confidence': 'normal',
+                                  'precision': 'year', 'year_day_ambiguity': 'False'}],
+                          'date': [{'start': '1900-12-30', 'end': '1900-12-30', 'confidence': 'normal'}],
                           'confidence': 'normal'},
-                         {'fact_type': 'Burial', 'content': None,
-                          'age': {'duration': [20, 0, 0, 0], 'confidence': 'normal',
-                                  'precision': 'year', 'year_day_ambiguity': 'False'},
-                          'date': {'start': '1901-01-02', 'end': '1901-01-02', 'confidence': 'normal'},
+                         {'fact_type': 'Burial',
+                          'age': [{'duration': [20, 0, 0, 0], 'confidence': 'normal',
+                                  'precision': 'year', 'year_day_ambiguity': 'False'}],
+                          'date': [{'start': '1901-01-02', 'end': '1901-01-02', 'confidence': 'normal'}],
                           'confidence': 'normal'},
-                         {'fact_type': 'Birth', 'content': None,
-                          'date': {'start': '1880-01-05', 'end': '1881-01-03', 'confidence': 'calculated',
-                                   'notes': ['Birth date calculated from actual or estimated death date.']},
+                         {'fact_type': 'Birth',
+                          'date': [{'start': '1880-01-05', 'end': '1881-01-03', 'confidence': 'calculated',
+                                   'notes': ['Birth date calculated from actual or estimated death date.']}],
                           'confidence': 'normal'}]
 
 
