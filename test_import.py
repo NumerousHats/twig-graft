@@ -65,17 +65,15 @@ class TestDeath:
         record.set_birth_death("12-30", "1901-01-02", "1900", None)
         facts = record.json()["people"][0]["facts"]
         assert facts == [{'fact_type': 'Death',
-                          'age': [{'duration': [20, 0, 0, 0], 'confidence': 'normal',
-                                  'precision': 'year', 'year_day_ambiguity': 'False'}],
-                          'date': [{'start': '1900-12-30', 'end': '1900-12-30', 'confidence': 'normal'}],
+                          'age': [{'duration': [20, 0, 0, 0], 'precision': 'year', 'year_day_ambiguity': 'False'}],
+                          'date': [{'start': '1900-12-30', 'end': '1900-12-30', "accuracy": 0}],
                           'confidence': 'normal'},
                          {'fact_type': 'Burial',
-                          'age': [{'duration': [20, 0, 0, 0], 'confidence': 'normal',
-                                  'precision': 'year', 'year_day_ambiguity': 'False'}],
-                          'date': [{'start': '1901-01-02', 'end': '1901-01-02', 'confidence': 'normal'}],
+                          'age': [{'duration': [20, 0, 0, 0],  'precision': 'year', 'year_day_ambiguity': 'False'}],
+                          'date': [{'start': '1901-01-02', 'end': '1901-01-02', "accuracy": 0}],
                           'confidence': 'normal'},
                          {'fact_type': 'Birth',
-                          'date': [{'start': '1880-01-05', 'end': '1881-01-03', 'confidence': 'calculated',
+                          'date': [{'start': '1880-01-05', 'end': '1881-01-03', "accuracy": 10,
                                    'notes': ['Birth date calculated from actual or estimated death date.']}],
                           'confidence': 'normal'}]
 

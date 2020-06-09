@@ -231,8 +231,8 @@ class DeathRecord(Record):
         return [x for x in all_relations if x]
 
     def json(self):
-        people_json = [x.json_dict() for x in self.people()]
-        relations_json = [x.json_dict() for x in self.relations()]
+        people_json = [x.json() for x in self.people()]
+        relations_json = [x.json() for x in self.relations()]
         return {"people": people_json, "relations": relations_json}
 
     def add_annotated_fact(self, person, fact, fields):
@@ -342,8 +342,7 @@ class DeathRecord(Record):
                 # We only know the burial date. Assume death occurred within the previous week.
                 self.death_date = Date(burial_date.start - datetime.timedelta(days=6),
                                        burial_date.end,
-                                       notes=["Death date unknown, estimated from burial date."],
-                                       confidence="calculated")
+                                       notes=["Death date unknown, estimated from burial date."])
                 self.add_annotated_fact(self.decedent,
                                         Fact(fact_type="Death", date=self.death_date, age=self.age,
                                              locations=self.location, sources=self.source),
@@ -358,16 +357,17 @@ class DeathRecord(Record):
         birth = Fact(fact_type="Birth", sources=self.source)
 
         birth_date = subtract(self.death_date, self.age)
-        if birth_year_col:
-            birth_year = int(birth_year_col)
-            if birth_date.start < datetime.date(birth_year, 1, 1):
-                birth_date.start = datetime.date(birth_year, 1, 1)
-            if birth_date.end > datetime.date(birth_year, 12, 31):
-                birth_date.end = datetime.date(birth_year, 12, 31)
-        else:
-            birth_date.add_note("Birth date calculated from actual or estimated death date.")
+        for bd in birth_date:
+            if birth_year_col:
+                birth_year = int(birth_year_col)
+                if bd.start < datetime.date(birth_year, 1, 1):
+                    bd.start = datetime.date(birth_year, 1, 1)
+                if bd.end > datetime.date(birth_year, 12, 31):
+                    bd.end = datetime.date(birth_year, 12, 31)
+            else:
+                bd.add_note("Birth date calculated from actual or estimated death date.")
 
-        birth.date.append(birth_date)
+        birth.add_date(birth_date)
         self.add_annotated_fact(self.decedent, birth, ["birth_year"])
 
     def set_parents(self, father_col, father_deceased, mother_col, mother_deceased):

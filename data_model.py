@@ -12,13 +12,13 @@ to Gedcom X are the following:
 - PlaceDescription has been grossly simplified, made house-number-centric, and renamed Location.
 - Agent, Group, and Document are not implemented.
 - Added Statement class, which is like a Conclusion but without a source.
-- Date, Location, Duration, and Conclusion are subclasses of Statement.
+- Location and Conclusion are subclasses of Statement.
 
 __str__ methods return a reasonably terse human-readable depiction of the object.
 
 __repr__ methods return the full object serialized as JSON.
 
-Each class also has a json_dict method, which returns a python dict that can be serialized into JSON
+Each class also has a json() method, which returns a python dict that can be serialized into JSON
 representation.
 
 Some classes also have a summarize() method that provides a more verbose human-readable summary.
@@ -52,9 +52,9 @@ class Statement:
         self.confidence = confidence
 
     def __repr__(self):
-        return json.dumps(self.json_dict())
+        return json.dumps(self.json())
 
-    def json_dict(self):
+    def json(self):
         out = {"confidence": self.confidence}
         if self.notes and self.notes != [None]:
             out["notes"] = self.notes
@@ -88,11 +88,11 @@ class Conclusion(Statement):
         else:
             self.sources = [sources]
 
-    def json_dict(self):
+    def json(self):
         output = {}
         if self.sources:
-            output.update({"sources": [x.json_dict() for x in self.sources]})
-        output.update(super().json_dict())
+            output.update({"sources": [x.json() for x in self.sources]})
+        output.update(super().json())
         return output
 
     def add_source(self, source):
@@ -133,37 +133,41 @@ class Fact(Conclusion):
         date (Date or list of Date)
         age (Duration or list of Duration)
     """
-    def __init__(self, fact_type, date=[], age=[], locations=None, content=None,
+    def __init__(self, fact_type, date=None, age=[], locations=None, content=None,
                  sources=None, notes=None, confidence="normal"):
         super().__init__(sources=sources, notes=notes, confidence=confidence)
         self.fact_type = fact_type
         self.content = content
         if type(date) is Date:
             self.date = [date]
-        else:
+        elif type(date) is list:
             self.date = date
+        else:
+            self.date = []
 
         if type(age) is Duration:
             self.age = [age]
-        else:
+        elif type(age) is list:
             self.age = age
+        else:
+            self.age = []
 
         if type(locations) is list or locations is None:
             self.locations = locations
         else:
             self.locations = [locations]
 
-    def json_dict(self):
+    def json(self):
         output = {"fact_type": self.fact_type}
         if self.content:
             output.update({"content": self.content})
         if self.age:
-            output.update({"age": [x.json_dict() for x in self.age]})
+            output.update({"age": [x.json() for x in self.age]})
         if self.date:
-            output.update({"date": [x.json_dict() for x in self.date]})
+            output.update({"date": [x.json() for x in self.date]})
         if self.locations:
-            output.update({"locations": [x.json_dict() for x in self.locations]})
-        output.update(super().json_dict())
+            output.update({"locations": [x.json() for x in self.locations]})
+        output.update(super().json())
         return output
 
     def __str__(self):
@@ -187,6 +191,12 @@ class Fact(Conclusion):
             self.locations = [location]
         else:
             self.locations.append(location)
+
+    def add_date(self, date):
+        self.date.extend(date)
+
+    def add_age(self, age):
+        self.age.extend(age)
 
 
 class Name(Conclusion):
@@ -231,13 +241,13 @@ class Name(Conclusion):
                 except KeyError:
                     logger.info("key miss while standardizing surname '{}'".format(self.name_parts["surname"]))
 
-    def json_dict(self):
+    def json(self):
         output = {"name_type": self.name_type, "name_parts": self.name_parts,
                   "standard_surname": self.standard_surname,
                   "standard_given": self.standard_given}
         if self.date:
-            output.update({"date": self.date.json_dict()})
-        output.update(super().json_dict())
+            output.update({"date": self.date.json()})
+        output.update(super().json())
         return output
 
     def str_terse(self):
@@ -289,13 +299,13 @@ class Person(Conclusion):
         self.gender = gender
         self.identifier = str(uuid.uuid4())
 
-    def json_dict(self):
+    def json(self):
         output = {"identifier": self.identifier, "gender": self.gender}
         if self.names:
-            output.update({"names": [x.json_dict() for x in self.names]})
+            output.update({"names": [x.json() for x in self.names]})
         if self.facts:
-            output.update({"facts": [x.json_dict() for x in self.facts]})
-        output.update(super().json_dict())
+            output.update({"facts": [x.json() for x in self.facts]})
+        output.update(super().json())
         return output
 
     def __str__(self):
@@ -401,12 +411,12 @@ class Relationship(Conclusion):
         self.relationship_type = relationship_type
         self.identifier = str(uuid.uuid4())
 
-    def json_dict(self):
+    def json(self):
         output = {"identifier": self.identifier, "from_id": self.from_id, "to_id": self.to_id,
                   "relationship_type": self.relationship_type}
         if self.facts:
-            output.update({"facts": [x.json_dict() for x in self.facts]})
-        output.update(super().json_dict())
+            output.update({"facts": [x.json() for x in self.facts]})
+        output.update(super().json())
         return output
 
     def add_fact(self, fact):
@@ -435,10 +445,10 @@ class Location(Statement):
         self.alt_house_number = alt_house_number
         self.alt_village = alt_village
 
-    def json_dict(self):
+    def json(self):
         output = {"house_number": self.house_number, "alt_house_number": self.alt_house_number,
                   "alt_village": self.alt_village}
-        output.update(super().json_dict())
+        output.update(super().json())
         return output
 
     def __str__(self):
@@ -452,7 +462,7 @@ class Location(Statement):
         return "".join(output)
 
 
-class Date(Statement):
+class Date:
     """A date or date range of a genealogical event/fact.
 
     A precise date is represented by the degenerate range with self.start == self.end.
@@ -463,7 +473,9 @@ class Date(Statement):
     Attributes:
         start (datetime.date): The start of a date rage.
         end (datetime.date): The end of the date range
-        confidence (str): The confidence level of the date.
+        accuracy (datetime.timedelta): The "error bar" on the date range. A particular calendar date is considered to
+            be consistent with Date.start and Date.end if it is within the interval
+            [Date.start-accuracy, Date.end+accuracy].
 
     Args:
         start_val (str or datetime.date): Should be an ISO-format date string (YYYY-MM-DD) or a datetime.date
@@ -473,10 +485,8 @@ class Date(Statement):
         end_val (str or datetime.date or None): Should be an ISO-format date string (YYYY-MM-DD) or a datetime.date
             object representing the end date of the interval. If the date range is to be unbounded from above,
             then it should be passed an empty string.
-        confidence (str or None): The confidence level of the date.
     """
-    def __init__(self, start_val, end_val=None, notes=None, confidence="normal"):
-        super().__init__(notes=notes, confidence=confidence)
+    def __init__(self, start_val, end_val=None, accuracy=None, notes=None):
         if type(start_val) is datetime.date:
             self.start = start_val
         else:
@@ -496,20 +506,32 @@ class Date(Statement):
                 else:
                     self.end = datetime.date.max
 
-    def json_dict(self):
+        if accuracy is None:
+            self.accuracy = datetime.timedelta(days=0)
+        else:
+            self.accuracy = accuracy
+
+        if type(notes) is list or notes is None:
+            self.notes = notes
+        else:
+            self.notes = [notes]
+
+    def json(self):
         output = {"start": self.start.isoformat(), "end": self.end.isoformat(),
-                  "confidence": self.confidence}
-        output.update(super().json_dict())
+                  "accuracy": self.accuracy.days}
+        if self.notes and self.notes != [None]:
+            output["notes"] = self.notes
+
         return output
+
+    def __repr__(self):
+        return json.dumps(self.json())
 
     def __str__(self):
         if self.start == self.end:
             output = self.start.isoformat()
         else:
             output = '{} to {}'.format(self.start.isoformat(), self.end.isoformat())
-
-        if self.confidence != "normal":
-            output = output + ' ({})'.format(self.confidence)
 
         return output
 
@@ -519,8 +541,14 @@ class Date(Statement):
         else:
             return False
 
+    def add_note(self, note):
+        if self.notes is None:
+            self.notes = [note]
+        else:
+            self.notes.append(note)
 
-class Duration(Statement):
+
+class Duration:
     """The duration of a time interval.
 
     Objects of this class are typically used to represent the age of a Person at the time of a particular
@@ -532,11 +560,10 @@ class Duration(Statement):
         duration  (datetime.timedelta): The duration of the interval.
         precision (str): The precision of the duration. Must be one of ("year", "month", "week", "day").
             For example, a death record specifying that the age of the deceased was "4 2/3 annorum"
-            should be given a precision of "month".
-        confidence (str): Confidence level (accuracy) of the duration. Must be one of "normal", "calculated", or "low".
-            Confidence is independent of precision: the priest may have written "4 2/3 annorum" (i.e. a
-            precision of "month"), but if sloppy penmanship makes it hard to tell whether the number is
-            a "4" or a "9", then the confidence level is only to within 5 years.
+            should be given a precision of "month". Precision is independent of accuracy: the priest may have
+            written "4 2/3 annorum" (i.e. a precision of "month"), but if sloppy penmanship makes it hard to tell
+            whether the number is a "4" or a "9", then the accuracy is much less. In the latter case,
+            the associated Fact should have multiple durations to account for each possible reading.
         year_day_ambiguity (bool): Indicates if there is a unit ambiguity between days and years.
             This happens for some death records where the pre-printed column heading for age is "dies
             vitae", but where a number was entered without units and there is a chance that the entered
@@ -549,9 +576,7 @@ class Duration(Statement):
         precision (str or None): The precision of the duration (see Attributes above). If None, then
             the precision will be inferred from the duration_list.
     """
-    def __init__(self, duration_list=None, precision=None, notes=None, confidence="normal",
-                 year_day_ambiguity=None):
-        super().__init__(notes=notes, confidence=confidence)
+    def __init__(self, duration_list=None, precision=None, notes=None, year_day_ambiguity=None):
         self.duration_list = duration_list
         self.duration = datetime.timedelta(weeks=duration_list[2],
                                            days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
@@ -565,14 +590,22 @@ class Duration(Statement):
         else:
             self.precision = precision
 
-        self.confidence = confidence
+        if type(notes) is list or notes is None:
+            self.notes = notes
+        else:
+            self.notes = [notes]
+
         self.year_day_ambiguity = year_day_ambiguity
 
-    def json_dict(self):
-        output = {"duration": self.duration_list, "confidence": self.confidence,
+    def json(self):
+        output = {"duration": self.duration_list,
                   "precision": self.precision, "year_day_ambiguity": str(self.year_day_ambiguity)}
-        output.update(super().json_dict())
+        if self.notes and self.notes != [None]:
+            output["notes"] = self.notes
         return output
+
+    def __repr__(self):
+        return json.dumps(self.json())
 
     def __str__(self):
         time_names = ("years", "months", "weeks", "days")
@@ -582,6 +615,12 @@ class Duration(Statement):
                 continue
             output.append(str(self.duration_list[i]) + " " + time_names[i])
         return ", ".join(output)
+
+    def add_note(self, note):
+        if self.notes is None:
+            self.notes = [note]
+        else:
+            self.notes.append(note)
 
 
 class Source:
@@ -603,9 +642,9 @@ class Source:
         self.image_file = image_file
 
     def __repr__(self):
-        return json.dumps(self.json_dict())
+        return json.dumps(self.json())
 
-    def json_dict(self):
+    def json(self):
         return {"repository": self.repository, "volume": self.volume, "page_number": self.page_number,
                 "entry_number": self.entry_number,
                 "image_file": self.image_file}
@@ -619,51 +658,49 @@ def subtract(date, duration):
     """Subtract a Duration from a Date and return a new Date.
 
     This is not a straightforward subtraction of a datetime.timedelta from a datetime.date, because a Duration
-    has an associated precision. So, subtracting an age of 35 years (with a precision of years) from an exact
-    death date of 1899-01-02 should produce a birth date estimate that has a range from 1863-01-03 (i.e. the
-    person died just one day shy of their 36th birthday) to 1864-01-02 (they died exactly on their 35th birthday).
-    Precisions of months and weeks need to be treated similarly.
-
-    Furthermore, the Date that is being subtracted from may itself already consist of a range. So, suppose that
-    we did not know an exact death date, but only that it was in the interval [1899-01-01, 1899-01-31]. Then, if
-    we know that the person died at the age of 35 years (with a precision of years), then the resulting range for
-    the birth date should be [1863-01-02, 1864-01-31].
-
-    For simplicity, it assumes that months are 30 days long and years are 365 days long (consistent with the
-    Duration.duration).
-
-    If there is year-day ambiguity in the duration or either the date or duration have a confidence of "low", then
-    the resulting Date.confidence is set to "low", otherwise it is set to "calculated".
+    has an associated precision. Furthermore, the Date that is being subtracted from may itself already consist of
+    a range. For simplicity, this function assumes that months are 30 days long and years are 365 days
+    long (for consistency with Duration.duration). If there is year-day ambiguity in the duration, then the resulting
+    list will contain two Date objects.
 
     Args:
         date (Date): The Date to be subtracted from.
         duration (Duration): The Duration to subtract.
 
     Returns:
-        A new Date object corresponding to the date minus the duration
+        A list of Date objects corresponding to the date minus the duration.
     """
     if type(duration) is not Duration or type(date) is not Date:
         raise TypeError("duration must be a Duration and date must be a Date")
 
     if duration.precision == "day":
-        start = date.start - duration.duration
-        end = date.end - duration.duration
+        start_delta = duration.duration
+        accuracy = datetime.timedelta(days=1)
     elif duration.precision == "week":
-        start = date.start - (duration.duration + datetime.timedelta(days=6))
-        end = date.end - duration.duration
+        start_delta = duration.duration + datetime.timedelta(days=6)
+        accuracy = datetime.timedelta(days=2)
     elif duration.precision == "month":
-        start = date.start - (duration.duration + datetime.timedelta(days=29))
-        end = date.end - duration.duration
+        start_delta = duration.duration + datetime.timedelta(days=29)
+        accuracy = datetime.timedelta(days=3)
     elif duration.precision == "year":
-        start = date.start - (duration.duration + datetime.timedelta(days=364))
-        end = date.end - duration.duration
+        start_delta = duration.duration + datetime.timedelta(days=364)
+        accuracy = datetime.timedelta(days=10)
     else:
         raise ValueError("illegal precision value in Duration")
 
-    new_date = Date(start, end)
-    if date.confidence == "low" or duration.confidence == "low" or duration.year_day_ambiguity:
-        new_date.confidence = "low"
-    else:
-        new_date.confidence = "calculated"
+    new_date = [Date(date.start - start_delta, date.end - duration.duration, accuracy=accuracy)]
+    if duration.year_day_ambiguity:
+        if duration.precision == "day":
+            end_delta = datetime.timedelta(days=duration.duration_list[3]*365)
+            start_delta = end_delta + datetime.timedelta(days=364)
+            accuracy = datetime.timedelta(days=10)
+        elif duration.precision == "year":
+            end_delta = datetime.timedelta(days=duration.duration_list[0])
+            start_delta = end_delta
+            accuracy = datetime.timedelta(days=1)
+        else:
+            raise ValueError("precision must be 'day' or 'year' if there is year/day ambiguity")
+
+        new_date.append(Date(date.start - start_delta, date.end - end_delta, accuracy=accuracy))
 
     return new_date
