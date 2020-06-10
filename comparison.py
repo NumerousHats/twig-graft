@@ -37,18 +37,159 @@ def compare_date(date1, date2):
         pass
 
 
-def thing_match(thing1, thing2, total_count, total_comp):
+def thing_match(thing1, thing2, total_count, total_comp, increment=1.0):
     if thing1 is None or thing2 is None:
         return None, total_count, total_comp
 
     if thing1 == thing2:
-        return True, total_count+1, total_comp+1
+        return True, total_count+increment, total_comp+1
     else:
         return False, total_count, total_comp+1
 
 
+def compare_name_part(name1: Name, name2: Name, part: str):
+    if part == "given":
+        standard1 = name1.standard_given
+        standard2 = name2.standard_given
+    elif part == "surname":
+        standard1 = name1.standard_surname
+        standard2 = name2.standard_surname
+    else:
+        raise ValueError
+
+    raw1 = name1.name_parts.get(part)
+    raw2 = name2.name_parts.get(part)
+
+    if standard1 and standard2:
+        if standard1 == standard2:
+            return True
+        else:
+            return False
+    else:
+        # TODO do fuzzy matches on raw names
+        return None
+
+
+def compare_fullname(name1: Name, name2: Name, disqualify_surname_mismatch=False):
+    """Compare both given and surname for a pair of Names.
+
+    Args:
+        name1: The first Name
+        name2: The second Name
+        disqualify_surname_mismatch: if True, cause surname mismatch to return False
+
+    Returns:
+        True if there is a match on both name parts, False if it is impossible for the two Names to be of the
+        same person-in-real-life, and None otherwise.
+
+    """
+    matches = 0
+    given_comp = compare_name_part(name1, name2, "given")
+    surname_comp = compare_name_part(name1, name2, "surname")
+
+    if given_comp is not None:
+        if given_comp:
+            matches += 1
+        else:
+            return False
+
+    if surname_comp is not None:
+        if disqualify_surname_mismatch and not surname_comp:
+            return False
+        if surname_comp:
+            matches += 1
+
+    if matches == 2:
+        return True
+    else:
+        return None
+
+
+def name_match(names1, names2):
+    logger = logging.getLogger(__name__)
+    # print(str(repr(names1)))
+    # print("\n")
+    # print(str(repr(names2)))
+    matches = 0
+    comparisons = 0
+
+    if not names1 or not names2:
+        return 0, 0
+    
+    if 'birth' in names1.keys():
+        name1 = names1["birth"][0]
+        if 'birth' in names2.keys():
+            name2 = names2["birth"][0]
+            comp = compare_fullname(name1, name2, disqualify_surname_mismatch=True)
+            if comp:
+                matches += 1
+            elif comp is False:
+                return -1, 0
+        if 'married' in names2.keys():
+            for name2 in names2["married"]:
+                comp = compare_fullname(name1, name2)
+                if comp:
+                    matches += 1
+                elif comp is False:
+                    return -1, 0
+        if 'unknown' in names2.keys():
+            for name2 in names2["unknown"]:
+                comp = compare_fullname(name1, name2)
+                if comp:
+                    matches += 1
+                elif comp is False:
+                    return -1, 0
+    elif 'married' in names1.keys():
+        for name1 in names1["married"]:
+            if 'birth' in names2.keys():
+                name2 = names2["birth"][0]
+                comp = compare_fullname(name1, name2, disqualify_surname_mismatch=True)
+                if comp:
+                    matches += 1
+                elif comp is False:
+                    return -1, 0
+            if 'married' in names2.keys():
+                for name2 in names2["married"]:
+                    comp = compare_fullname(name1, name2)
+                    if comp:
+                        matches += 1
+                    elif comp is False:
+                        return -1, 0
+            if 'unknown' in names2.keys():
+                for name2 in names2["unknown"]:
+                    comp = compare_fullname(name1, name2)
+                    if comp:
+                        matches += 1
+                    elif comp is False:
+                        return -1, 0
+    elif 'unknown' in names1.keys():
+        for name1 in names1["unknown"]:
+            if 'birth' in names2.keys():
+                name2 = names2["birth"][0]
+                comp = compare_fullname(name1, name2)
+                if comp:
+                    matches += 1
+                elif comp is False:
+                    return -1, 0
+            if 'married' in names2.keys():
+                for name2 in names2["married"]:
+                    comp = compare_fullname(name1, name2)
+                    if comp:
+                        matches += 1
+                    elif comp is False:
+                        return -1, 0
+            if 'unknown' in names2.keys():
+                for name2 in names2["unknown"]:
+                    comp = compare_fullname(name1, name2)
+                    if comp:
+                        matches += 1
+                    elif comp is False:
+                        return -1, 0
+    return matches, comparisons
+
+
 def compare_person(person1: Person, person2: Person):
-    """Calculate the posterior probability that two Person objects are the same person-in-real-life.
+    """Determine if two Person objects could be the same person-in-real-life.
     """
     logger = logging.getLogger(__name__)
     matches = 0
@@ -57,28 +198,19 @@ def compare_person(person1: Person, person2: Person):
 
     if person1.has_fact("Stillbirth") or person2.has_fact("Stillbirth"):
         logger.debug("Stillbirth")
-        return 0
+        return 0, None
 
-    val, matches, comparisons = thing_match(person1.gender, person2.gender, matches, comparisons)
-    if val is False:
+    if person1.gender != person2.gender:
         logger.debug("Gender mismatch")
-        return 0
+        return 0, None
 
-    birth_name1 = [x for x in person1.names if x.name_type == "birth"][0]
-    birth_name2 = [x for x in person2.names if x.name_type == "birth"][0]
+    name_matches, name_comparisons = name_match(person1.get_names(), person2.get_names())
+    if name_matches == -1:
+        logger.debug("Name mismatch")
+        return 0, None
+    matches += name_matches
+    comparisons += name_comparisons
 
-    val, matches, comparisons = thing_match(birth_name1.standard_given,
-                                            birth_name2.standard_given, matches, comparisons)
-    if val is False:
-        logger.debug("Birth name given mismatch")
-        return 0
+    return matches, comparisons
 
-    val, matches, comparisons = thing_match(birth_name1.standard_surname,
-                                            birth_name2.standard_surname, matches, comparisons)
-    if val is False:
-        logger.debug("Birth name surname mismatch")
-        return 0
-
-    # deal with "unknown" name type
-
-    # points of comparison: gender, names, lifespan, marital status, associated house numbers
+    # TODO points of comparison: lifespan, marital status, associated house numbers
