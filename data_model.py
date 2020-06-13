@@ -382,6 +382,24 @@ class Person(Conclusion):
     def has_fact(self, fact):
         return fact in self.get_facts().keys()
 
+    def birth_date(self):
+        facts = self.get_facts()
+        if "Birth" in facts.keys():
+            if len(facts["Birth"]) != 1:
+                raise ValueError("Person can have only one birth Fact.")
+            return facts["Birth"][0].date
+        else:
+            return None
+
+    def death_date(self):
+        facts = self.get_facts()
+        if "Death" in facts.keys():
+            if len(facts["Death"]) != 1:
+                raise ValueError("Person can have only one death Fact.")
+            return facts["Death"][0].date
+        else:
+            return None
+
 
 class Relationship(Conclusion):
     """A description of a relationship between two Persons.

@@ -1,42 +1,6 @@
 from data_model import *
 
 
-def compare_date(date1, date2):
-    """Compare two Date objects.
-
-    This function is a total mess and not usable as it is currently written.
-
-    For degenerate ranges (i.e. start == end), the situation is trivial: the Dates are either the same,
-    or one is before the other. For non-degenerate ranges, there seem to be 11 possibilities for how
-    they could relate to each other. If the ranges match exactly or are non-overlapping, then the
-    situation is again similar to the degenerate case. For the remaining 8 possibilities, classifying them into
-    "before" or "after" is not at all simple, and it's not clear what this function should return.
-
-    Perhaps this should be split into multiple functions: one to determine whether there is overlap, one to determine
-    if there is strict equality or ordering, and one to determine the direction of "asymmetric overhang".
-
-    Args:
-        date1 (Date): The first Date to compare.
-        date2 (Date): The second Date to compare.
-
-    Returns:
-        Good question.
-    """
-    if type(date1) is not Date or type(date2) is not Date:
-        raise TypeError("arguments to compare_data must be Date objects")
-
-    # TODO this needs to be seriously re-thunk
-    if date1.start == date2.start and date1.end == date2.end:
-        return 0
-    if date1.start < date2.start:
-        if date1.end < date2.start:
-            return 2
-        else:
-            return 1
-    else:
-        pass
-
-
 def thing_match(thing1, thing2, total_count, total_comp, increment=1.0):
     if thing1 is None or thing2 is None:
         return None, total_count, total_comp
@@ -159,6 +123,54 @@ def name_match(names1, names2):
     return matches, comparisons
 
 
+def date_overlap(date1: Date, date2: Date):
+    """Determine if two Date objects could possibly represent the same event, i.e. their intervals have
+        a non-empty intersection.
+    """
+
+    return date1.start - date1.accuracy <= date2.end + date2.accuracy and \
+           date2.start - date2.accuracy <= date1.end + date1.accuracy
+
+
+def datelist_overlap(datelist1, datelist2):
+    """Determine if two lists of Date objects could possibly represent the same event, i.e. at least one interval
+        in datelist1 has a non-empty intersection with at least one interval in datelist2."""
+
+    for date1 in datelist1:
+        for date2 in datelist2:
+            if date_overlap(date1, date2):
+                return True
+
+    return False
+
+
+def birth_death_match(person1: Person, person2: Person):
+
+    birth1 = person1.birth_date()
+    birth2 = person2.birth_date()
+    death1 = person1.death_date()
+    death2 = person2.death_date()
+
+    comparisons = 0
+    matches = 0
+
+    if birth1 and birth2:
+        comparisons += 1
+        if datelist_overlap(birth1, birth2):
+            matches += 1
+        else:
+            return -1, 0
+
+    if death1 and death2:
+        comparisons += 1
+        if datelist_overlap(death1, death2):
+            matches += 1
+        else:
+            return -1, 0
+
+    return matches, comparisons
+
+
 def compare_person(person1: Person, person2: Person):
     """Determine if two Person objects could be the same person-in-real-life.
     """
@@ -182,6 +194,13 @@ def compare_person(person1: Person, person2: Person):
     matches += name_matches
     comparisons += name_comparisons
 
+    date_matches, date_comparisons = birth_death_match(person1, person2)
+    if date_matches == -1:
+        logger.debug("Date mismatch")
+        return 0, None
+    matches += date_matches
+    comparisons += date_comparisons
+
     return matches, comparisons
 
-    # TODO points of comparison: lifespan, marital status, associated house numbers
+    # TODO points of comparison: marital status, associated house numbers
