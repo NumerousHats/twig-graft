@@ -106,8 +106,8 @@ class Fact(Conclusion):
     """A data item that is presumed to be true about a specific subject.
 
     Subjects can be a person or a relationship. In contrast to the full Gedcom X, there is no
-    distinction between Facts and Events. For occurrences that involve more than one Person (e.g. marriages),
-    the Fact should be attached to the Relationship object.
+    distinction between Facts and Events. For properties that involve more than one Person (e.g. data items
+    related to marriages), the Fact(s) should be attached to the appropriate Relationship object.
 
     Attributes:
         fact_type (str): The type of Fact. Should correspond to one of the Gedcom X Known Fact Types.
@@ -317,16 +317,21 @@ class Person(Conclusion):
         else:
             if names["birth"]:
                 output.append(names["birth"][0].str_terse())
+            elif names["married"]:
+                if "given" in names["married"][0].name_parts:
+                    output.append(names["married"][0].name_parts["given"])
 
         if names["married"]:
-            married_names = [x.name_parts["surname"] for x in names["married"] if x.name_parts["surname"]]
+            married_names = [x.name_parts["surname"] for x in names["married"]  if "surname" in x.name_parts]
             output.append("({})".format(", ".join(married_names)))
 
         if facts["Birth"]:
-            output.append("B {}".format(facts["Birth"][0].date))
+            dates = [str(x) for x in facts["Birth"][0].date]
+            output.append("B {}".format(" or ".join(dates)))
 
         if facts["Death"]:
-            output.append("D {}".format(facts["Death"][0].date))
+            dates = [str(x) for x in facts["Death"][0].date]
+            output.append("D {}".format(" or ".join(dates)))
 
         return " ".join(output)
 
@@ -531,7 +536,7 @@ class Date:
         if self.start == self.end:
             output = self.start.isoformat()
         else:
-            output = '{} to {}'.format(self.start.isoformat(), self.end.isoformat())
+            output = '[{}, {}]'.format(self.start.isoformat(), self.end.isoformat())
 
         return output
 
