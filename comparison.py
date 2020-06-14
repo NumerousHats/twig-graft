@@ -171,8 +171,8 @@ def birth_death_match(person1: Person, person2: Person):
     return matches, comparisons
 
 
-def compare_person(person1: Person, person2: Person):
-    """Determine if two Person objects could be the same person-in-real-life.
+def compare_person(person1, person2, graph=None):
+    """Determine if two Person objects could be the same person-in-real-life in the context of a relationship graph.
     """
     logger = logging.getLogger(__name__)
     matches = 0
@@ -200,6 +200,23 @@ def compare_person(person1: Person, person2: Person):
         return 0, None
     matches += date_matches
     comparisons += date_comparisons
+
+    if person1.has_fact("Coelebs"):
+        if graph:
+            relations = graph.direct_relations(person2.identifier)
+        else:
+            relations = {}
+        names = person2.get_names()
+        if "spouses" in relations or "married" in names:
+            logger.debug("Inconsistent marital status for %s and %s", person1, person2)
+            return 0, None
+
+    if person2.has_fact("Coelebs"):
+        relations = graph.direct_relations(person1.identifier)
+        names = person1.get_names()
+        if "spouses" in relations or "married" in names:
+            logger.debug("Inconsistent marital status for %s and %s", person1, person2)
+            return 0, None
 
     return matches, comparisons
 
