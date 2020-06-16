@@ -103,8 +103,8 @@ def name_match(names1, names2):
                 return -1, 0
 
     if birth1:
-        for name1 in names1list:
-            comp = compare_fullname(name1, birth2)
+        for name2 in names2list:
+            comp = compare_fullname(birth1, name2)
             comparisons += 1
             if comp:
                 matches += 1
@@ -112,8 +112,8 @@ def name_match(names1, names2):
                 return -1, 0
 
     if birth2:
-        for name2 in names2list:
-            comp = compare_fullname(birth1, name2)
+        for name1 in names1list:
+            comp = compare_fullname(name1, birth2)
             comparisons += 1
             if comp:
                 matches += 1

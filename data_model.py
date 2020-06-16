@@ -1,7 +1,7 @@
 """Module containing classes that define a genealogical data model.
 
 This model is inspired by the Gedcom X conceptual model, but is much simpler and is specific to the particular
-task at hand. It is not meant to be a general-purpose genealogical data model. Among the many differences relative
+task at hand. It is not intended to be a general-purpose genealogical data model. Among the many differences relative
 to Gedcom X are the following:
 
 - There are no Events, only Facts.
@@ -11,17 +11,21 @@ to Gedcom X are the following:
 - SourceDescription has been grossly simplified and renamed Source.
 - PlaceDescription has been grossly simplified, made house-number-centric, and renamed Location.
 - Agent, Group, and Document are not implemented.
-- Added Statement class, which is like a Conclusion but without a source.
-- Location and Conclusion are subclasses of Statement.
+- Added Statement class, which is like a Conclusion but without a source. Location and Conclusion are
+  subclasses of Statement.
 
-__str__ methods return a reasonably terse human-readable depiction of the object.
+__str__ methods return a relatively terse human-readable depiction of the object.
 
-__repr__ methods return the full object serialized as JSON.
-
-Each class also has a json() method, which returns a python dict that can be serialized into JSON
-representation.
+__repr__ methods return the full object serialized as a JSON string. Each class also has a json() method,
+    which returns a python dict that can be serialized into JSON string representation.
 
 Some classes also have a summarize() method that provides a more verbose human-readable summary.
+
+Each __init__ method has a "json_dict" argument, which should be either None or contain a dict with the same
+    structure as the one produced by the json() method of the same class. If it is not None, then all other
+    arguments are ignored, and the dict is used to set the attributes of the object.
+
+Ref: https://github.com/FamilySearch/gedcomx/blob/master/specifications/conceptual-model-specification.md
 
 """
 
