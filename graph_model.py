@@ -1,19 +1,48 @@
-import networkx as nx
+"""Module defining a graph model for genealogical relationships between people.
+
+The model is a directed graph implemented using the NetworkX package. Nodes correspond to Person objects (from
+data_model). Since Person objects are mutable, the NetworkX nodes are the value of Person.identifier,
+and the actual Person object is stored in a dict indexed by identifier. Edges have the property "relation" which
+contain Relationship objects (from data_model).
+"""
+
+
 import itertools
 from collections import defaultdict
+import json
+
+import networkx as nx
+
 from import_records import Record
 from comparison import compare_person
+from data_model import Person, Relationship
 
 
 class PeopleGraph:
-    def __init__(self):
+    def __init__(self, graph_json=None):
         self.graph = nx.DiGraph()
         self.people = {}
-        # TODO this should eventually include ability to import saved graph databases from JSON
+
+        if graph_json:
+            relations = []
+            for p in graph_json["persons"]:
+                person = Person(json_dict=p)
+                self.people.update({person.identifier: person})
+            for r in graph_json["relations"]:
+                relation = Relationship(None, None, None, json_dict=r)
+                relations.append((relation.from_id, relation.to_id, {"relation": relation}))
+
+            self.graph.add_nodes_from(self.people.keys())
+            self.graph.add_edges_from(relations)
+
+    def json(self):
+        graph = {"persons": [x.json() for x in self.people.values()], "relations": []}
+        for (u, v, relation) in self.graph.edges.data('relation'):
+            graph["relations"].append(relation.json())
+        return graph
 
     def __repr__(self):
-        # TODO this should create a JSON serialization of the entire graph
-        pass
+        return json.dumps(self.json())
 
     def append(self, record: Record):
         self.people.update({p.identifier: p for p in record.people()})

@@ -41,15 +41,20 @@ class Statement:
 
     Args:
         notes (str or list of str or None): Note(s) about this conclusion.
+        json_dict (dict or None): Serialization from which to import.
     """
 
-    def __init__(self, notes=None, confidence="normal"):
-        if type(notes) is list or notes is None:
-            self.notes = notes
+    def __init__(self, notes=None, confidence="normal", json_dict=None):
+        if json_dict:
+            self.confidence = json_dict.get("confidence", None)
+            self.notes = json_dict.get("notes", None)
         else:
-            self.notes = [notes]
+            if type(notes) is list or notes is None:
+                self.notes = notes
+            else:
+                self.notes = [notes]
 
-        self.confidence = confidence
+            self.confidence = confidence
 
     def __repr__(self):
         return json.dumps(self.json())
@@ -80,13 +85,21 @@ class Conclusion(Statement):
     Args:
         sources (Source or list of Source or None): Source(s) related to this conclusion.
         notes (str or list of str or None): Note(s) about this conclusion.
+        json_dict (dict or None): Serialization from which to import.
     """
-    def __init__(self, sources=None, notes=None, confidence="normal"):
-        super().__init__(notes=notes, confidence=confidence)
-        if type(sources) is list or sources is None:
-            self.sources = sources
+    def __init__(self, sources=None, notes=None, confidence="normal", json_dict=None):
+        if json_dict:
+            super().__init__(json_dict=json_dict)
+            if "sources" in json_dict:
+                self.sources = [Source(json_dict=x) for x in json_dict["sources"]]
+            else:
+                self.sources = None
         else:
-            self.sources = [sources]
+            super().__init__(notes=notes, confidence=confidence)
+            if type(sources) is list or sources is None:
+                self.sources = sources
+            else:
+                self.sources = [sources]
 
     def json(self):
         output = {}
@@ -133,29 +146,46 @@ class Fact(Conclusion):
         date (Date or list of Date)
         age (Duration or list of Duration)
     """
-    def __init__(self, fact_type, date=None, age=[], locations=None, content=None,
-                 sources=None, notes=None, confidence="normal"):
-        super().__init__(sources=sources, notes=notes, confidence=confidence)
-        self.fact_type = fact_type
-        self.content = content
-        if type(date) is Date:
-            self.date = [date]
-        elif type(date) is list:
-            self.date = date
+    def __init__(self, fact_type, date=None, age=None, locations=None, content=None,
+                 sources=None, notes=None, confidence="normal", json_dict=None):
+        if json_dict:
+            super().__init__(json_dict=json_dict)
+            self.fact_type = json_dict["fact_type"]
+            if "date" in json_dict:
+                self.date = [Date("dummy", json_dict=x) for x in json_dict["date"]]
+            else:
+                self.date = None
+            if "age" in json_dict:
+                self.age = [Duration(json_dict=x) for x in json_dict["age"]]
+            else:
+                self.age = None
+            if "locations" in json_dict:
+                self.locations = [Location(json_dict=x) for x in json_dict["locations"]]
+            else:
+                self.locations = None
+            self.content = json_dict.get("content", None)
         else:
-            self.date = []
+            super().__init__(sources=sources, notes=notes, confidence=confidence)
+            self.fact_type = fact_type
+            self.content = content
+            if type(date) is Date:
+                self.date = [date]
+            elif type(date) is list:
+                self.date = date
+            else:
+                self.date = []
 
-        if type(age) is Duration:
-            self.age = [age]
-        elif type(age) is list:
-            self.age = age
-        else:
-            self.age = []
+            if type(age) is Duration:
+                self.age = [age]
+            elif type(age) is list:
+                self.age = age
+            else:
+                self.age = []
 
-        if type(locations) is list or locations is None:
-            self.locations = locations
-        else:
-            self.locations = [locations]
+            if type(locations) is list or locations is None:
+                self.locations = locations
+            else:
+                self.locations = [locations]
 
     def json(self):
         output = {"fact_type": self.fact_type}
@@ -218,28 +248,39 @@ class Name(Conclusion):
     __name_order = ["prefix", "given", "surname", "suffix", "house"]
 
     def __init__(self, name_type, name_parts, date=None, sources=None, notes=None,
-                 confidence="normal", thesaurus=None):
-        super().__init__(sources=sources, notes=notes, confidence=confidence)
-        self.name_type = name_type
-        self.name_parts = {k: v for k, v in name_parts.items() if v is not None}
-        self.date = date
-        self.standard_given = None
-        self.standard_surname = None
+                 confidence="normal", thesaurus=None, json_dict=None):
+        if json_dict:
+            super().__init__(json_dict=json_dict)
+            self.name_type = json_dict["name_type"]
+            self.name_parts = json_dict["name_parts"]
+            if "date" in json_dict:
+                self.date = Date("dummy", json_dict=json_dict["date"])
+            else:
+                self.date = None
+            self.standard_surname = json_dict.get("standard_surname", None)
+            self.standard_given = json_dict.get("standard_given", None)
+        else:
+            super().__init__(sources=sources, notes=notes, confidence=confidence)
+            self.standard_given = None
+            self.standard_surname = None
+            self.name_type = name_type
+            self.name_parts = {k: v for k, v in name_parts.items() if v is not None}
+            self.date = date
 
-        logger = logging.getLogger(__name__)
+            logger = logging.getLogger(__name__)
 
-        if thesaurus:
-            if "given" in self.name_parts.keys():
-                try:
-                    self.standard_given = thesaurus[self.name_parts["given"]]
-                except KeyError:
-                    logger.info("key miss while standardizing given name '{}'".format(self.name_parts["given"]))
+            if thesaurus:
+                if "given" in self.name_parts.keys():
+                    try:
+                        self.standard_given = thesaurus[self.name_parts["given"]]
+                    except KeyError:
+                        logger.info("key miss while standardizing given name '{}'".format(self.name_parts["given"]))
 
-            if "surname" in self.name_parts.keys():
-                try:
-                    self.standard_surname = thesaurus[self.name_parts["surname"]]
-                except KeyError:
-                    logger.info("key miss while standardizing surname '{}'".format(self.name_parts["surname"]))
+                if "surname" in self.name_parts.keys():
+                    try:
+                        self.standard_surname = thesaurus[self.name_parts["surname"]]
+                    except KeyError:
+                        logger.info("key miss while standardizing surname '{}'".format(self.name_parts["surname"]))
 
     def json(self):
         output = {"name_type": self.name_type, "name_parts": self.name_parts,
@@ -276,28 +317,40 @@ class Person(Conclusion):
         facts (Fact or list of Fact or None): Fact(s) regarding the person.
     """
     def __init__(self, names=None, gender=None, facts=None,
-                 sources=None, notes=None, confidence="normal"):
-        super().__init__(sources=sources, notes=notes, confidence=confidence)
-
-        if names:
-            if type(names) is list:
-                if len([n for n in names if n.name_type == "birth"]) > 1:
-                    raise ValueError("a Person can only have one birth Name")
-                self.names = names
-            elif type(names) is Name:
-                self.names = [names]
+                 sources=None, notes=None, confidence="normal", json_dict=None):
+        if json_dict:
+            super().__init__(json_dict=json_dict)
+            if "names" in json_dict:
+                self.names = [Name(name_type=None, name_parts={}, json_dict=x) for x in json_dict["names"]]
             else:
-                raise ValueError("names must be a Name object or a list thereof")
+                self.names = None
+            self.gender = json_dict.get("gender", None)
+            if "facts" in json_dict:
+                self.facts = [Fact(fact_type=None, json_dict=x) for x in json_dict["facts"]]
+            else:
+                self.facts = None
+            self.identifier = json_dict["identifier"]
         else:
-            self.names = None
+            super().__init__(sources=sources, notes=notes, confidence=confidence)
+            if names:
+                if type(names) is list:
+                    if len([n for n in names if n.name_type == "birth"]) > 1:
+                        raise ValueError("a Person can only have one birth Name")
+                    self.names = names
+                elif type(names) is Name:
+                    self.names = [names]
+                else:
+                    raise ValueError("names must be a Name object or a list thereof")
+            else:
+                self.names = None
 
-        if type(facts) is list or facts is None:
-            self.facts = facts
-        else:
-            self.facts = [facts]
+            if type(facts) is list or facts is None:
+                self.facts = facts
+            else:
+                self.facts = [facts]
 
-        self.gender = gender
-        self.identifier = str(uuid.uuid4())
+            self.gender = gender
+            self.identifier = str(uuid.uuid4())
 
     def json(self):
         output = {"identifier": self.identifier, "gender": self.gender}
@@ -322,7 +375,7 @@ class Person(Conclusion):
                     output.append(names["married"][0].name_parts["given"])
 
         if names["married"]:
-            married_names = [x.name_parts["surname"] for x in names["married"]  if "surname" in x.name_parts]
+            married_names = [x.name_parts["surname"] for x in names["married"] if "surname" in x.name_parts]
             output.append("({})".format(", ".join(married_names)))
 
         if facts["Birth"]:
@@ -418,21 +471,31 @@ class Relationship(Conclusion):
             or marriage.
     """
     def __init__(self, from_id, to_id, relationship_type, facts=None,
-                 sources=None, notes=None, confidence="normal"):
-        super().__init__(sources=sources, notes=notes, confidence=confidence)
-
-        if relationship_type != "spouse" and relationship_type != "parent-child":
-            raise ValueError("relationship_type must be 'spouse' or 'parent-child'")
-
-        if type(facts) is list or facts is None:
-            self.facts = facts
+                 sources=None, notes=None, confidence="normal", json_dict=None):
+        if json_dict:
+            super().__init__(json_dict=json_dict)
+            self.from_id = json_dict["from_id"]
+            self.to_id = json_dict["to_id"]
+            self.relationship_type = json_dict["relationship_type"]
+            self.identifier = json_dict["identifier"]
+            if "facts" in json_dict:
+                self.facts = [Fact(fact_type=None, json_dict=x) for x in json_dict["facts"]]
+            else:
+                self.facts = None
         else:
-            self.facts = [facts]
+            super().__init__(sources=sources, notes=notes, confidence=confidence)
+            if relationship_type != "spouse" and relationship_type != "parent-child":
+                raise ValueError("relationship_type must be 'spouse' or 'parent-child'")
 
-        self.from_id = from_id
-        self.to_id = to_id
-        self.relationship_type = relationship_type
-        self.identifier = str(uuid.uuid4())
+            if type(facts) is list or facts is None:
+                self.facts = facts
+            else:
+                self.facts = [facts]
+
+            self.from_id = from_id
+            self.to_id = to_id
+            self.relationship_type = relationship_type
+            self.identifier = str(uuid.uuid4())
 
     def json(self):
         output = {"identifier": self.identifier, "from_id": self.from_id, "to_id": self.to_id,
@@ -462,11 +525,18 @@ class Location(Statement):
             in the metrical book entry. Otherwise, it should be None, and is assumed to be the village
             where the parish is located.
     """
-    def __init__(self, house_number=None, alt_house_number=None, alt_village=None, notes=None, confidence="normal"):
-        super().__init__(notes=notes, confidence=confidence)
-        self.house_number = house_number
-        self.alt_house_number = alt_house_number
-        self.alt_village = alt_village
+    def __init__(self, house_number=None, alt_house_number=None, alt_village=None, notes=None,
+                 confidence="normal", json_dict=None):
+        if json_dict:
+            super().__init__(json_dict=json_dict)
+            self.house_number = json_dict.get("house_number", None)
+            self.alt_house_number = json_dict.get("alt_house_number", None)
+            self.alt_village = json_dict.get("alt_village", None)
+        else:
+            super().__init__(notes=notes, confidence=confidence)
+            self.house_number = house_number
+            self.alt_house_number = alt_house_number
+            self.alt_village = alt_village
 
     def json(self):
         output = {"house_number": self.house_number, "alt_house_number": self.alt_house_number,
@@ -509,35 +579,41 @@ class Date:
             object representing the end date of the interval. If the date range is to be unbounded from above,
             then it should be passed an empty string.
     """
-    def __init__(self, start_val, end_val=None, accuracy=None, notes=None):
-        if type(start_val) is datetime.date:
-            self.start = start_val
+    def __init__(self, start_val, end_val=None, accuracy=None, notes=None, json_dict=None):
+        if json_dict:
+            self.start = datetime.datetime.strptime(json_dict["start"], "%Y-%m-%d").date()
+            self.end = datetime.datetime.strptime(json_dict["end"], "%Y-%m-%d").date()
+            self.accuracy = datetime.timedelta(days=json_dict["accuracy"])
+            self.notes = json_dict.get("notes", None)
         else:
-            if start_val != "":
-                self.start = datetime.datetime.strptime(start_val, "%Y-%m-%d").date()
+            if type(start_val) is datetime.date:
+                self.start = start_val
             else:
-                self.start = datetime.date.min
-
-        if end_val is None:
-            self.end = self.start
-        else:
-            if type(end_val) is datetime.date:
-                self.end = end_val
-            else:
-                if end_val != "":
-                    self.end = datetime.datetime.strptime(end_val, "%Y-%m-%d").date()
+                if start_val != "":
+                    self.start = datetime.datetime.strptime(start_val, "%Y-%m-%d").date()
                 else:
-                    self.end = datetime.date.max
+                    self.start = datetime.date.min
 
-        if accuracy is None:
-            self.accuracy = datetime.timedelta(days=0)
-        else:
-            self.accuracy = accuracy
+            if end_val is None:
+                self.end = self.start
+            else:
+                if type(end_val) is datetime.date:
+                    self.end = end_val
+                else:
+                    if end_val != "":
+                        self.end = datetime.datetime.strptime(end_val, "%Y-%m-%d").date()
+                    else:
+                        self.end = datetime.date.max
 
-        if type(notes) is list or notes is None:
-            self.notes = notes
-        else:
-            self.notes = [notes]
+            if accuracy is None:
+                self.accuracy = datetime.timedelta(days=0)
+            else:
+                self.accuracy = accuracy
+
+            if type(notes) is list or notes is None:
+                self.notes = notes
+            else:
+                self.notes = [notes]
 
     def json(self):
         output = {"start": self.start.isoformat(), "end": self.end.isoformat(),
@@ -599,26 +675,32 @@ class Duration:
         precision (str or None): The precision of the duration (see Attributes above). If None, then
             the precision will be inferred from the duration_list.
     """
-    def __init__(self, duration_list=None, precision=None, notes=None, year_day_ambiguity=None):
-        self.duration_list = duration_list
-        self.duration = datetime.timedelta(weeks=duration_list[2],
-                                           days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
-        if precision is None:
-            if sum(duration_list) == 0:
-                self.precision = "day"
+    def __init__(self, duration_list=None, precision=None, notes=None, year_day_ambiguity=None, json_dict=None):
+        if json_dict:
+            self.duration_list = json_dict["duration"]
+            self.precision = json_dict["precision"]
+            self.year_day_ambiguity = json_dict["year_day_ambiguity"]
+            self.notes = json_dict.get("notes", None)
+        else:
+            self.duration_list = duration_list
+            self.duration = datetime.timedelta(weeks=duration_list[2],
+                                               days=365*duration_list[0]+30*duration_list[1]+duration_list[3])
+            if precision is None:
+                if sum(duration_list) == 0:
+                    self.precision = "day"
+                else:
+                    # find last non-zero element of reversed duration_list
+                    index = next(x for x, val in enumerate(reversed(duration_list)) if val > 0)
+                    self.precision = ["day", "week", "month", "year"][index]
             else:
-                # find last non-zero element of reversed duration_list
-                index = next(x for x, val in enumerate(reversed(duration_list)) if val > 0)
-                self.precision = ["day", "week", "month", "year"][index]
-        else:
-            self.precision = precision
+                self.precision = precision
 
-        if type(notes) is list or notes is None:
-            self.notes = notes
-        else:
-            self.notes = [notes]
+            if type(notes) is list or notes is None:
+                self.notes = notes
+            else:
+                self.notes = [notes]
 
-        self.year_day_ambiguity = year_day_ambiguity
+            self.year_day_ambiguity = year_day_ambiguity
 
     def json(self):
         output = {"duration": self.duration_list,
@@ -657,12 +739,19 @@ class Source:
         image_file (str): The name of the image file in which the source record is located.
     """
     def __init__(self, repository=None, volume=None, page_number=None, entry_number=None,
-                 image_file=None):
-        self.repository = repository
-        self.volume = volume
-        self.page_number = page_number
-        self.entry_number = entry_number
-        self.image_file = image_file
+                 image_file=None, json_dict=None):
+        if json_dict:
+            self.repository = json_dict.get("repository", None)
+            self.volume = json_dict.get("volume", None)
+            self.page_number = json_dict.get("page_number", None)
+            self.entry_number = json_dict.get("entry_number", None)
+            self.image_file = json_dict.get("image_file", None)
+        else:
+            self.repository = repository
+            self.volume = volume
+            self.page_number = page_number
+            self.entry_number = entry_number
+            self.image_file = image_file
 
     def __repr__(self):
         return json.dumps(self.json())
