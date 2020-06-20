@@ -7,14 +7,12 @@ contain Relationship objects (from data_model).
 """
 
 
-import itertools
 from collections import defaultdict
 import json
 
 import networkx as nx
 
 from import_records import Record
-from comparison import compare_person
 from data_model import Person, Relationship
 
 
@@ -73,10 +71,3 @@ class PeopleGraph:
 
         return relations
 
-    def all_vs_all(self):
-        for pid1, pid2 in itertools.combinations(self.people, 2):
-            p1 = self.people[pid1]
-            p2 = self.people[pid2]
-            matches, comparisons = compare_person(p1, p2, self)
-            if matches > 0:
-                print("possible match:\n\t{}\n\t{}\n{} matches in {} comparisons".format(p1, p2, matches, comparisons))

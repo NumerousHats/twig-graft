@@ -171,35 +171,61 @@ def birth_death_match(person1: Person, person2: Person):
     return matches, comparisons
 
 
+def compare_location(loc1: Location, loc2: Location):
+    """Examine two Locations for possible consistency.
+
+    Returns:
+        True if the locations are consistent, False if it is impossible that the two are the same.
+    """
+    if loc1.alt_village != loc2.alt_village:
+        return False
+
+    matching_values = [value for value in [loc1.house_number, loc1.alt_house_number] if value in
+                                                                         [loc2.house_number, loc2.alt_house_number]
+                                                                         and value is not None]
+    if matching_values:
+        return True
+    else:
+        return False
+
+
+def location_match(locations1, locations2):
+    """Examine two lists of locations for consistency.
+    """
+    matches = 0
+
+    if locations1 and locations2:
+        for loc1 in locations1:
+            for loc2 in locations2:
+                if location_match(loc1, loc2):
+                    matches += 1
+
+    return matches
+
+
 def compare_person(person1, person2, graph=None):
     """Determine if two Person objects could be the same person-in-real-life in the context of a relationship graph.
     """
     logger = logging.getLogger(__name__)
-    matches = 0
-    comparisons = 0
     logger.debug("comparing %s to %s", person1, person2)
 
     if person1.has_fact("Stillbirth") or person2.has_fact("Stillbirth"):
         logger.debug("Stillbirth")
-        return 0, None
+        return 0, None, None
 
     if person1.gender != person2.gender:
         logger.debug("Gender mismatch")
-        return 0, None
+        return 0, None, None
 
     name_matches, name_comparisons = name_match(person1.get_names(), person2.get_names())
     if name_matches == -1:
         logger.debug("Name mismatch")
-        return 0, None
-    matches += name_matches
-    comparisons += name_comparisons
+        return 0, None, None
 
     date_matches, date_comparisons = birth_death_match(person1, person2)
     if date_matches == -1:
         logger.debug("Date mismatch")
-        return 0, None
-    matches += date_matches
-    comparisons += date_comparisons
+        return 0, None, None
 
     if person1.has_fact("Coelebs"):
         if graph:
@@ -209,15 +235,13 @@ def compare_person(person1, person2, graph=None):
         names = person2.get_names()
         if "spouses" in relations or "married" in names:
             logger.debug("Inconsistent marital status for %s and %s", person1, person2)
-            return 0, None
+            return 0, None, None
 
     if person2.has_fact("Coelebs"):
         relations = graph.direct_relations(person1.identifier)
         names = person1.get_names()
         if "spouses" in relations or "married" in names:
             logger.debug("Inconsistent marital status for %s and %s", person1, person2)
-            return 0, None
+            return 0, None, None
 
-    return matches, comparisons
-
-    # TODO points of comparison: marital status, associated house numbers
+    return name_matches, date_matches, location_match(person1.get_locations(), person2.get_locations())

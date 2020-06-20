@@ -457,6 +457,17 @@ class Person(Conclusion):
         else:
             return None
 
+    def get_locations(self):
+        """Extract all distinct Locations from all Facts associated with this Person
+
+        Returns:
+            list of Location
+        """
+        locl = [fact.locations for thing in self.get_facts().values() for fact in thing]
+        loc = [item for item in locl if item is not None]
+        locations = [item for sublist in loc for item in sublist]
+        return list(set(locations))
+
 
 class Relationship(Conclusion):
     """A description of a relationship between two Persons.
@@ -519,6 +530,8 @@ class Relationship(Conclusion):
 class Location(Statement):
     """A location specified by house number(s) and possible alternate village.
 
+    Location objects are hashable and can be compared with respect to equality.
+
     Attributes:
         house_number (int): The house number, or the first listed house number if there was a renumbering
             (e.g. a metrical book entry like "123/245" would have a house_number of 123).
@@ -557,6 +570,17 @@ class Location(Statement):
         if self.alt_village is not None:
             output.append(' ({})'.format(self.alt_village))
         return "".join(output)
+
+    def __hash__(self):
+        return hash((self.house_number, self.alt_village, self.alt_house_number))
+
+    def __eq__(self, other):
+        if not isinstance(other, Location):
+            return NotImplemented
+
+        return self.house_number == other.house_number \
+               and self.alt_house_number == other.alt_house_number \
+               and self.alt_village == other.alt_village
 
 
 class Date:
