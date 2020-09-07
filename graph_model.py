@@ -1,9 +1,9 @@
 """Module defining a graph model for genealogical relationships between people.
 
-The model is a directed graph implemented using the NetworkX package. Nodes correspond to Person objects (from
-data_model). Since Person objects are mutable, the NetworkX nodes are the value of Person.identifier,
+The model is a directed graph implemented using the NetworkX package. Although nodes correspond to objects of type
+data_model.Person, since Person objects are mutable, the actual NetworkX nodes are the value of Person.identifier,
 and the actual Person object is stored in a dict indexed by identifier. Edges have the property "relation" which
-contain Relationship objects (from data_model).
+contain an object of type data_model.Relationship.
 """
 
 
@@ -70,4 +70,18 @@ class PeopleGraph:
                 relations["spouses"].append(edge[1])
 
         return relations
+
+    def relation_str(self, pid1, pid2):
+        out = [str(self.people[pid1])]
+
+        rel_type = self.graph[pid1][pid2]['relation'].relationship_type
+        if rel_type == "parent-child":
+            out.append("parent of")
+        elif rel_type == "spouse":
+            out.append("spouse of")
+        else:
+            raise ValueError("invalid relationship type")
+
+        out.append(str(self.people[pid2]))
+        return "\n".join(out)
 

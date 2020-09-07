@@ -390,6 +390,12 @@ class Person(Conclusion):
             dates = [str(x) for x in facts["Death"][0].date]
             output.append("D {}".format(" or ".join(dates)))
 
+        locations = self.get_locations()
+        if locations:
+            output.append("living at")
+        for loc in locations:
+            output.append(str(loc))
+
         return " ".join(output)
 
     def add_fact(self, fact):
