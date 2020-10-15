@@ -1,6 +1,8 @@
 import itertools
 import networkx as nx
+from networkx.algorithms import isomorphism
 from comparison import compare_person
+import comparison
 
 
 def locations_in_component(people):
@@ -54,3 +56,56 @@ def compare_all_components(people_graph):
             else:
                 for pid in comp2nodes:
                     print(people_graph.people[pid])
+
+
+def node_match(node1, node2):
+    try:
+        if comparison.person_mismatch(node1["person"], node2["person"]):
+            return False
+        else:
+            return True
+    except KeyError:
+        return True
+
+
+def match_all_components(the_graph):
+    components = list(nx.weakly_connected_components(the_graph.graph))
+    for comp1nodes, comp2nodes in itertools.combinations(components, 2):
+        if len(comp1nodes) == 1 or len(comp2nodes) == 1:
+            continue
+
+        comp1 = the_graph.graph.subgraph(comp1nodes)
+        comp2 = the_graph.graph.subgraph(comp2nodes)
+
+        matcher = isomorphism.DiGraphMatcher(comp1, comp2, node_match=node_match)
+        subgraph_matches = matcher.subgraph_isomorphisms_iter()
+        match_set = next(subgraph_matches, None)
+        if match_set:
+            print("\n###############################\n")
+
+            if len(comp1nodes) > 1:
+                for pid1, pid2 in comp1.edges:
+                    print(the_graph.relation_str(pid1, pid2) + "\n")
+            else:
+                for pid in comp1nodes:
+                    print(the_graph.people[pid])
+
+            print("\n-----\n")
+
+            if len(comp2nodes) > 1:
+                for pid1, pid2 in comp2.edges:
+                    print(the_graph.relation_str(pid1, pid2) + "\n")
+            else:
+                for pid in comp2nodes:
+                    print(the_graph.people[pid])
+
+            print("\n\n=======================\n\n")
+
+            for p1 in match_set.keys():
+                print("matched {} to {}".format(the_graph.people[p1], the_graph.people[match_set[p1]]))
+
+        for match_set in subgraph_matches:
+            print("\n\n=======================\n\n")
+
+            for p1 in match_set.keys():
+                print("matched {} to {}".format(the_graph.people[p1], the_graph.people[match_set[p1]]))

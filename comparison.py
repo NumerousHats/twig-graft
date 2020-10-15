@@ -245,3 +245,30 @@ def compare_person(person1, person2, graph=None):
             return 0, None, None
 
     return name_matches, date_matches, location_match(person1.get_locations(), person2.get_locations())
+
+
+def person_mismatch(person1, person2):
+    """Return True if two Person objects cannot be the same person-in-real-life.
+    """
+    logger = logging.getLogger(__name__)
+    logger.debug("comparing %s to %s for mismatch", person1, person2)
+
+    if person1.has_fact("Stillbirth") or person2.has_fact("Stillbirth"):
+        logger.debug("Stillbirth")
+        return True
+
+    if person1.gender != person2.gender:
+        logger.debug("Gender mismatch")
+        return True
+
+    name_matches, name_comparisons = name_match(person1.get_names(), person2.get_names())
+    if name_matches == -1:
+        logger.debug("Name mismatch")
+        return True
+
+    date_matches, date_comparisons = birth_death_match(person1, person2)
+    if date_matches == -1:
+        logger.debug("Date mismatch")
+        return True
+
+    return False

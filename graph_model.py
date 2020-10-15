@@ -30,7 +30,7 @@ class PeopleGraph:
                 relation = Relationship(None, None, None, json_dict=r)
                 relations.append((relation.from_id, relation.to_id, {"relation": relation}))
 
-            self.graph.add_nodes_from(self.people.keys())
+            self.graph.add_nodes_from([(k, {"person": self.people[k]}) for k in self.people.keys()])
             self.graph.add_edges_from(relations)
 
     def json(self):
@@ -84,4 +84,3 @@ class PeopleGraph:
 
         out.append(str(self.people[pid2]))
         return "\n".join(out)
-
