@@ -3,41 +3,79 @@ import graph_model
 
 import logging
 import logging.config
-import json
-import itertools
+import copy
 import networkx as nx
-from networkx.algorithms import isomorphism
-import comparison
 
 
 def node_match(node1, node2):
-    try:
-        print("{} vs {}".format(node1["person"], node2["person"]))
-        if comparison.person_mismatch(node1["person"], node2["person"]):
-            return False
-    except KeyError:
-        return True
-    return True
+    return node1["stuff"] == node2["stuff"]
+
+
+def edge_match(edge1, edge2):
+    pass
+
+
+def mcgregor(graph1, graph2):
+    def match(g1, g2, g1nodes, g2nodes, matches):
+        if g1nodes:
+            target = g1nodes.pop(0)
+            for g2n in g2nodes:
+                temp2 = copy.copy(g2nodes)
+                temp2.remove(g2n)
+                match(g1, g2, g1nodes, temp2, )
+
+    if graph1.number_of_nodes() < graph2.number_of_nodes():
+        small = graph1
+        big = graph2
+    else:
+        small = graph2
+        big = graph1
+
+    # node_matches = defaultdict(list)
+    # for s_key in small.nodes.keys():
+    #     for b_key in big.nodes.keys():
+    #         if node_match(small.nodes[s_key], big.nodes[b_key]):
+    #             node_matches[s_key].append(b_key)
+
+
+def assign(g1nodes, g2nodes, assignments=None):
+    if assignments is None:
+        assignments = {}
+
+    g1todo = [x for x in g1nodes if x not in assignments.keys()]
+    if g1todo:
+        g1node = g1todo[0]
+        for g2node in [x for x in g2nodes if x not in list(assignments.values())]:
+            assignments[g1node] = g2node
+            assign(g1nodes, g2nodes, assignments)
+        del assignments[g1node]
+    else:
+        print(assignments)
 
 
 def main():
     logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', level=logging.INFO)
 
-    with open('testgraph.json') as f:
-        input_json = json.load(f)
+    # blob1 = nx.read_gml("blob1lab.gml")
+    # blob2 = nx.read_gml("blob2lab.gml")
 
-    the_graph = graph_model.PeopleGraph(graph_json=input_json)
+    blob1 = nx.Graph()
+    blob1.add_edge("A", "B")
+    blob1.add_edge("A", "C")
+    blob1.add_edge("C", "B")
+    blob1.add_edge("C", "D")
+    blob1.add_edge("D", "E")
 
-    components = list(nx.weakly_connected_components(the_graph.graph))
-    for comp1nodes, comp2nodes in itertools.combinations(components, 2):
-        comp1 = the_graph.graph.subgraph(comp1nodes)
-        comp2 = the_graph.graph.subgraph(comp2nodes)
+    blob2 = nx.Graph()
+    blob2.add_edge("a", "c")
+    blob2.add_edge("b", "c")
+    blob2.add_edge("c", "d")
+    blob2.add_edge("d", "g")
+    blob2.add_edge("d", "e")
+    blob2.add_edge("e", "f")
+    blob2.add_edge("f", "g")
 
-        matcher = isomorphism.DiGraphMatcher(comp1, comp2, node_match=node_match)
-        for match_set in matcher.subgraph_isomorphisms_iter():
-            print("\n\nmatch set start\n")
-            for p1 in match_set.keys():
-                print("matched {} to {}".format(the_graph.people[p1], the_graph.people[match_set[p1]]))
+    assign(blob1.nodes, blob2.nodes)
 
 
 if __name__ == "__main__":
