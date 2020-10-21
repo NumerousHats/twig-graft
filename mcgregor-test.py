@@ -6,6 +6,27 @@ import logging.config
 import networkx as nx
 
 
+class NodeMatching:
+    """Encapsulates the node matching of two graphs.
+
+    Attributes:
+        graph1 (nx.Graph): The smaller of the two input graphs.
+        graph2 (nx.Graph): The larger of the two input graphs.
+        g1nodes (list or nx.NodeView): The nodes of g1 arranged in priority order.
+        g2nodes (list or nx.NodeView): The nodes of g2 arranged in priority order.
+        assignments (dict): The current node matching (g1 nodes as keys, g2 nodes as values).
+        maximal_edges (int): The number of edges in the largest common subgraph found up to this point.
+    """
+    def __init__(self, graph1, graph2, g1nodes, g2nodes):
+        self.graph1 = graph1
+        self.graph2 = graph2
+        self.g1nodes = g1nodes
+        self.g2nodes = g2nodes
+
+        self.maximal_edges = 0
+        self.assignments = {}
+
+
 def node_match(node1, node2):
     return node1["stuff"] == node2["stuff"]
 
@@ -29,36 +50,31 @@ def mcgregor(graph1, graph2, node_comp=None, edge_comp=None):
          Some sort of object that encapsulates the maximal common subgraph(s) and associated node matching(s).
     """
 
-    def assign(g1, g2, g1nodes, g2nodes, assignments=None):
+    def assign(matching):
         """The recursive function that performs a depth-first branch-and-bound search of the node
         matching space.
 
          Args:
-             g1 (nx.Graph): The smaller of the two input graphs.
-             g2 (nx.Graph): The larger of the two input graphs.
-             g1nodes (list): The nodes of g1 arranged in priority order.
-             g2nodes (list): The nodes of g2 arranged in priority order.
-             assignments (dict or None): The current node matching (g1 nodes as keys, g2 nodes as values).
+             matching (NodeMatching): The current state of the node matching.
         """
 
-        if assignments is None:
-            assignments = {}
-        else:
+        if matching.assignments:
             # TODO construct the common subgraph induced by the current node matching
             # TODO terminate early if the number of remaining feasible edges is too small
             pass
 
-        g1todo = [x for x in g1nodes if x not in assignments.keys()]
+        g1todo = [x for x in matching.g1nodes if x not in matching.assignments.keys()]
         if g1todo:
             g1node = g1todo[0]
-            for g2node in [x for x in g2nodes if x not in list(assignments.values())]:
+            for g2node in [x for x in matching.g2nodes if x not in list(matching.assignments.values())]:
                 # TODO determine if g2node is consistent with g1node
                 # TODO determine if any edges involving g1node and g2node are inconsistent
-                assignments[g1node] = g2node
-                assign(g1, g2, g1nodes, g2nodes, assignments)
-            del assignments[g1node]
+                matching.assignments[g1node] = g2node
+                assign(matching)
+            del matching.assignments[g1node]
         else:
-            print(" ".join(["{}{}".format(k, v) for k, v in assignments.items()]))
+            # recursion has bottomed out
+            print(" ".join(["{}{}".format(k, v) for k, v in matching.assignments.items()]))
             # TODO if maximal, add to match object
 
     if graph1.number_of_nodes() < graph2.number_of_nodes():
@@ -68,7 +84,8 @@ def mcgregor(graph1, graph2, node_comp=None, edge_comp=None):
         small = graph2
         big = graph1
 
-    assign(small, big, small.nodes, big.nodes)
+    mcs = NodeMatching(small, big, small.nodes, big.nodes)
+    assign(mcs)
 
 
 def main():
