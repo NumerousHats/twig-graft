@@ -33,7 +33,7 @@ class NodeMatching:
 
     def __str__(self):
         assignments = " ".join(["{};{}".format(k, v) for k, v in self.assignments.items()])
-        "[{}] with {} edges removed".format(assignments, self.edges_removed)
+        return "[{}] with {} edges removed".format(assignments, self.edges_removed)
 
 
 def node_match(node1, node2):
@@ -83,8 +83,9 @@ def mcgregor(graph1, graph2, node_comparison, edge_comparison):
 
                 edges_removed = starting_edges_removed
                 for n1, n2 in g1_possible_edges:
-                    # TODO the below statement doesn't work, as g1node isn't in matching.assignments yet
-                    if graph2.has_edge(matching.assignments[n1], matching.assignments[n2]):
+                    n1_2 = matching.assignments.get(n1, g2node)
+                    n2_2 = matching.assignments.get(n2, g2node)
+                    if graph2.has_edge(n1_2, n2_2):
                         pass
                         # TODO determine if any edges involving g1node and g2node are inconsistent
                     else:
@@ -97,7 +98,7 @@ def mcgregor(graph1, graph2, node_comparison, edge_comparison):
                 matching.edges_removed = edges_removed
                 assign(matching)
                 matching.edges_removed = starting_edges_removed
-            del matching.assignments[g1node]
+            matching.assignments.pop(g1node, None)
         else:
             # recursion has bottomed out
             print(matching)
