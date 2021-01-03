@@ -102,20 +102,22 @@ def node_match(g1, g2, node1, node2):
     # return True
 
 
-def edge_match(edge1, edge2):
-    return True
+def edge_match(g1, g2, n1_in_g1, n2_in_g1, n1_in_g2, n2_in_g2):
+    return g1.edges[n1_in_g1, n2_in_g1]["type"] == g2.edges[n1_in_g2, n2_in_g2]["type"]
 
 
 def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
-    """Implements (or will implement, as the case may be) a recursive version of the McGregor algorithm
-    for finding the maximal common node-induced subgraph of two input graphs subject to constraints on
-    node and edge attributes.
+    """Implements a recursive version of the McGregor algorithm for finding the maximal common node-induced
+    subgraph of two input graphs subject to constraints on node and edge attributes.
 
      Args:
          graph1 (nx.Graph): The first input graph.
          graph2 (nx.Graph): The second input graph.
-         node_comparison: A function that returns True if two nodes are compatible in terms of attributes
-         edge_comparison: A function that returns True if two edges are compatible in terms of attributes
+         node_comparison: A function that returns True if two nodes have compatible attributes. The function should
+            have 4 arguments, namely, graph1, graph2, a node in graph1, and a node in graph2.
+         edge_comparison: A function that returns True if two edges have compatible attributes. The function should
+            have 6 arguments, namely, graph1, graph2, nodes 1 and 2 that define the edge in graph1, and nodes 1
+            and 2 that define the edge in graph2.
 
      Returns:
          A NodeMatching object that contains the maximal common subgraph(s) and
@@ -150,13 +152,24 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
                     n1_2 = matching.assignments.get(n1, g2node)
                     n2_2 = matching.assignments.get(n2, g2node)
                     logger.debug('Comparing %s %s pair to %s %s', n1, n2, n1_2, n2_2)
+                    compatible_edge = False
                     if graph2.has_edge(n1_2, n2_2):
                         logger.debug("Both graphs have an edge")
-                        # TODO determine if any edges involving g1node and g2node are inconsistent
+                        if edge_comparison:
+                            if edge_comparison(graph1, graph2, n1, n2, n1_2, n2_2):
+                                compatible_edge = True
+                            else:
+                                logger.debug("Edges are incompatible")
+                        else:
+                            compatible_edge = True
+                    else:
+                        logger.debug("No corresponding edge in graph 2")
+
+                    if compatible_edge:
                         edges_added += 1
                     else:
                         edges_removed += 1
-                        logger.debug("Missing edge, edges_removed = %s", edges_removed)
+                        logger.debug("No compatible edge, edges_removed = %s", edges_removed)
 
                 if edges_removed > matching.maximal_edges_removed:
                     logger.debug("Too many removed edges")
@@ -216,8 +229,6 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
     else:
         node_matches = None
 
-    # TODO report on search size
-
     mcs = NodeMatching(small, big, node_matches)
     graph_matcher(mcs)
 
@@ -232,20 +243,20 @@ def main():
     logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', level=logging.INFO)
 
     blob1 = nx.Graph()
-    blob1.add_edge("A", "B")
-    blob1.add_edge("A", "C")
-    blob1.add_edge("C", "B")
-    blob1.add_edge("C", "D")
-    blob1.add_edge("D", "E")
+    blob1.add_edge("A", "B", type="straight")
+    blob1.add_edge("A", "C", type="wavy")
+    blob1.add_edge("C", "B", type="straight")
+    blob1.add_edge("C", "D", type="wavy")
+    blob1.add_edge("D", "E", type="straight")
 
     blob2 = nx.Graph()
-    blob2.add_edge("a", "c")
-    blob2.add_edge("b", "c")
-    blob2.add_edge("c", "d")
-    blob2.add_edge("d", "g")
-    blob2.add_edge("d", "e")
-    blob2.add_edge("e", "f")
-    blob2.add_edge("f", "g")
+    blob2.add_edge("a", "c", type="straight")
+    blob2.add_edge("b", "c", type="wavy")
+    blob2.add_edge("c", "d", type="wavy")
+    blob2.add_edge("d", "g", type="straight")
+    blob2.add_edge("d", "e", type="straight")
+    blob2.add_edge("e", "f", type="straight")
+    blob2.add_edge("f", "g", type="straight")
 
     # blob1 = nx.read_gml("blob1lab.gml")
     # blob2 = nx.read_gml("blob2lab.gml")
@@ -253,7 +264,8 @@ def main():
     # blob2 = blob2.to_undirected()
 
     # mcgregor(blob1, blob2, node_match)
-    output = mcgregor(blob1, blob2)
+    output = mcgregor(blob1, blob2, edge_comparison=edge_match)
+    print(output)
     print(output.maximal_common_subgraphs)
 
 
