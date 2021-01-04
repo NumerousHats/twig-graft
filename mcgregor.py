@@ -45,10 +45,10 @@ class NodeMatching:
         self.graph1 = graph1
         self.graph2 = graph2
 
+        self.node_matching = {}
         if node_matching:
             self.node_matching = node_matching
-        else:
-            self.node_matching = {}
+        elif node_matching is None:
             g1nodes = graph1.nodes
             g2nodes = graph2.nodes
             for node in g1nodes:
@@ -121,7 +121,7 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
         """
 
         logger = logging.getLogger(__name__)
-        logger.debug("Entering assign() with %s", matching)
+        logger.debug("Entering graph_matcher() with %s", matching.assignments)
 
         starting_edges_removed = matching.edges_removed
         starting_edges_added = matching.edges_added
@@ -171,7 +171,7 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
                 matching.edges_added = starting_edges_added
                 matching.assignments.pop(g1node, None)
         else:
-            logger.debug("Recursion bottomed out")
+            logger.debug("Recursion bottomed out due to lack of g1 nodes")
             if matching.edges_removed <= matching.maximal_edges_removed \
                     or matching.edges_added >= matching.edges_in_maximal_subgraph:
                 logger.debug("Found a possible new maximal subgraph")
@@ -223,11 +223,13 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
         node_matches = None
 
     mcs = NodeMatching(small, big, node_matches)
-    graph_matcher(mcs)
-
-    logger.info("found %s maximal common subgraphs with %s nodes and %s edges",
-                len(mcs.maximal_common_subgraphs), len(mcs.maximal_common_subgraphs[0].keys()),
-                mcs.edges_in_maximal_subgraph)
+    if mcs.node_matching:
+        graph_matcher(mcs)
+        logger.info("found %s maximal common subgraphs with %s nodes and %s edges",
+                    len(mcs.maximal_common_subgraphs), len(mcs.maximal_common_subgraphs[0].keys()),
+                    mcs.edges_in_maximal_subgraph)
+    else:
+        logger.info("maximal common subgraph is empty")
 
     return mcs
 
