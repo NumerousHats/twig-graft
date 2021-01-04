@@ -236,38 +236,43 @@ def main():
     logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', level=logging.INFO)
 
     blob1 = nx.DiGraph()
-    blob1.add_edge("A", "B")
-    blob1.add_edge("A", "C")
-    blob1.add_edge("B", "C")
-    blob1.add_edge("C", "D")
-    blob1.add_edge("D", "E")
+    blob1.add_edge("A", "B", type="straight")
+    blob1.add_edge("A", "C", type="wavy")
+    blob1.add_edge("B", "C", type="straight")
+    blob1.add_edge("C", "D", type="straight")
+    blob1.add_edge("D", "E", type="straight")
+
+    blob1.nodes["A"]['shape'] = "round"
+    blob1.nodes["B"]['shape'] = "square"
+    blob1.nodes["C"]['shape'] = "square"
+    blob1.nodes["D"]['shape'] = "round"
+    blob1.nodes["E"]['shape'] = "round"
 
     blob2 = nx.DiGraph()
-    blob2.add_edge("a", "c")
-    blob2.add_edge("c", "b")
-    blob2.add_edge("b", "a")
-    blob2.add_edge("b", "d")
-    blob2.add_edge("d", "g")
-    blob2.add_edge("e", "d")
-    blob2.add_edge("e", "f")
-    blob2.add_edge("g", "f")
+    blob2.add_edge("a", "c", type="straight")
+    blob2.add_edge("c", "b", type="wavy")
+    blob2.add_edge("b", "a", type="straight")
+    blob2.add_edge("b", "d", type="straight")
+    blob2.add_edge("d", "g", type="straight")
+    blob2.add_edge("e", "d", type="straight")
+    blob2.add_edge("e", "f", type="straight")
+    blob2.add_edge("g", "f", type="straight")
+
+    blob2.nodes["a"]['shape'] = "square"
+    blob2.nodes["b"]['shape'] = "square"
+    blob2.nodes["c"]['shape'] = "round"
+    blob2.nodes["d"]['shape'] = "round"
+    blob2.nodes["e"]['shape'] = "square"
+    blob2.nodes["f"]['shape'] = "round"
+    blob2.nodes["g"]['shape'] = "round"
 
     def node_match(g1, g2, node1, node2):
-        # logger = logging.getLogger(__name__)
-        # logger.debug("nodes are %s and %s", g1.nodes[node1]["stuff"], g2.nodes[node2]["stuff"])
-        return g1.nodes[node1]["stuff"] == g2.nodes[node2]["stuff"]
-        # return True
+        return g1.nodes[node1]["shape"] == g2.nodes[node2]["shape"]
 
     def edge_match(g1, g2, n1_in_g1, n2_in_g1, n1_in_g2, n2_in_g2):
         return g1.edges[n1_in_g1, n2_in_g1]["type"] == g2.edges[n1_in_g2, n2_in_g2]["type"]
 
-    # blob1 = nx.read_gml("blob1lab.gml")
-    # blob2 = nx.read_gml("blob2lab.gml")
-    # blob1 = blob1.to_undirected()
-    # blob2 = blob2.to_undirected()
-
-    # mcgregor(blob1, blob2, node_match)
-    output = mcgregor(blob1, blob2)
+    output = mcgregor(blob1, blob2, node_comparison=node_match, edge_comparison=edge_match)
     print(output)
     print(output.maximal_common_subgraphs)
 
