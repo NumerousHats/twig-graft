@@ -62,7 +62,6 @@ class NodeMatching:
         self.maximal_common_subgraphs = []
 
     def __str__(self):
-        assignments = " ".join(["{};{}".format(k, v) for k, v in self.assignments.items()])
         return "{} maximal common subgraphs with {} edges ({} edges removed)".format(
             len(self.maximal_common_subgraphs), self.edges_in_maximal_subgraph, self.maximal_edges_removed)
 
@@ -82,28 +81,17 @@ class NodeMatching:
 
         logger = logging.getLogger(__name__)
         if self.edges_added == self.edges_in_maximal_subgraph:
-            logger.debug("found another common subgraph of the same size: %s", str(self))
             self.maximal_common_subgraphs.append(copy.deepcopy(self.assignments))
+            logger.debug("found another common subgraph of the same size: %s", str(self))
         elif self.edges_added > self.edges_in_maximal_subgraph:
-            logger.info("found new common subgraph with more edges: %s", str(self))
             self.maximal_common_subgraphs.clear()
             self.maximal_common_subgraphs.append(copy.deepcopy(self.assignments))
             self.edges_in_maximal_subgraph = self.edges_added
+            logger.info("found a common subgraph with more edges (%s)", self.edges_in_maximal_subgraph)
 
         if self.edges_removed < self.maximal_edges_removed:
-            logger.info("found new bound on removed edges: %s", str(self))
             self.maximal_edges_removed = self.edges_removed
-
-
-def node_match(g1, g2, node1, node2):
-    # logger = logging.getLogger(__name__)
-    # logger.debug("nodes are %s and %s", g1.nodes[node1]["stuff"], g2.nodes[node2]["stuff"])
-    return g1.nodes[node1]["stuff"] == g2.nodes[node2]["stuff"]
-    # return True
-
-
-def edge_match(g1, g2, n1_in_g1, n2_in_g1, n1_in_g2, n2_in_g2):
-    return g1.edges[n1_in_g1, n2_in_g1]["type"] == g2.edges[n1_in_g2, n2_in_g2]["type"]
+            logger.info("found new bound on removed edges (%s)", self.maximal_edges_removed)
 
 
 def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
@@ -199,7 +187,12 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
     def edges_to_subgraph_directed(matching, new_node):
         """Returns all edges from a node to the currently matched subgraph of g1
         if g1 is directed."""
-        raise NotImplementedError
+        g1_subgraph_nodes = matching.assignments.keys()
+        out_edges = [(n1, n2) for (n1, n2) in matching.graph1.edges(new_node)
+                     if n1 in g1_subgraph_nodes or n2 in g1_subgraph_nodes]
+        in_edges = [(n2, n1) for (n1, n2) in matching.graph1.reverse().edges(new_node)
+                    if n1 in g1_subgraph_nodes or n2 in g1_subgraph_nodes]
+        return out_edges + in_edges
 
     logger = logging.getLogger(__name__)
 
@@ -242,21 +235,31 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
 def main():
     logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', level=logging.INFO)
 
-    blob1 = nx.Graph()
-    blob1.add_edge("A", "B", type="straight")
-    blob1.add_edge("A", "C", type="wavy")
-    blob1.add_edge("C", "B", type="straight")
-    blob1.add_edge("C", "D", type="wavy")
-    blob1.add_edge("D", "E", type="straight")
+    blob1 = nx.DiGraph()
+    blob1.add_edge("A", "B")
+    blob1.add_edge("A", "C")
+    blob1.add_edge("B", "C")
+    blob1.add_edge("C", "D")
+    blob1.add_edge("D", "E")
 
-    blob2 = nx.Graph()
-    blob2.add_edge("a", "c", type="straight")
-    blob2.add_edge("b", "c", type="wavy")
-    blob2.add_edge("c", "d", type="wavy")
-    blob2.add_edge("d", "g", type="straight")
-    blob2.add_edge("d", "e", type="straight")
-    blob2.add_edge("e", "f", type="straight")
-    blob2.add_edge("f", "g", type="straight")
+    blob2 = nx.DiGraph()
+    blob2.add_edge("a", "c")
+    blob2.add_edge("c", "b")
+    blob2.add_edge("b", "a")
+    blob2.add_edge("b", "d")
+    blob2.add_edge("d", "g")
+    blob2.add_edge("e", "d")
+    blob2.add_edge("e", "f")
+    blob2.add_edge("g", "f")
+
+    def node_match(g1, g2, node1, node2):
+        # logger = logging.getLogger(__name__)
+        # logger.debug("nodes are %s and %s", g1.nodes[node1]["stuff"], g2.nodes[node2]["stuff"])
+        return g1.nodes[node1]["stuff"] == g2.nodes[node2]["stuff"]
+        # return True
+
+    def edge_match(g1, g2, n1_in_g1, n2_in_g1, n1_in_g2, n2_in_g2):
+        return g1.edges[n1_in_g1, n2_in_g1]["type"] == g2.edges[n1_in_g2, n2_in_g2]["type"]
 
     # blob1 = nx.read_gml("blob1lab.gml")
     # blob2 = nx.read_gml("blob2lab.gml")
@@ -264,7 +267,7 @@ def main():
     # blob2 = blob2.to_undirected()
 
     # mcgregor(blob1, blob2, node_match)
-    output = mcgregor(blob1, blob2, edge_comparison=edge_match)
+    output = mcgregor(blob1, blob2)
     print(output)
     print(output.maximal_common_subgraphs)
 
