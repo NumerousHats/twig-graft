@@ -11,7 +11,7 @@ from graph_match import *
 
 
 def main():
-    logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', level=logging.WARNING)
 
     # thesaurus = {}
     # with open('standardized_surnames.csv') as csv_file:
@@ -34,7 +34,7 @@ def main():
 
     the_graph = graph_model.PeopleGraph(graph_json=input_json)
     # the_graph.summarize()
-    compare_all_components(the_graph)
+    match_all_components(the_graph)
 
 
 if __name__ == "__main__":

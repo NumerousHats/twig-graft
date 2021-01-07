@@ -1,8 +1,8 @@
 import itertools
 import networkx as nx
-from networkx.algorithms import isomorphism
 from comparison import compare_person
 import comparison
+from mcgregor import mcgregor
 
 
 def locations_in_component(people):
@@ -58,14 +58,12 @@ def compare_all_components(people_graph):
                     print(people_graph.people[pid])
 
 
-def node_match(node1, node2):
-    try:
-        if comparison.person_mismatch(node1["person"], node2["person"]):
-            return False
-        else:
-            return True
-    except KeyError:
-        return True
+def node_match(g1, g2, node1, node2):
+    return not comparison.person_mismatch(g1.nodes[node1]["person"], g2.nodes[node2]["person"])
+
+
+def edge_match(g1, g2, n1_in_g1, n2_in_g1, n1_in_g2, n2_in_g2):
+    return g1.edges[n1_in_g1, n2_in_g1]["relation"] == g2.edges[n1_in_g2, n2_in_g2]["relation"]
 
 
 def match_all_components(the_graph):
@@ -77,10 +75,8 @@ def match_all_components(the_graph):
         comp1 = the_graph.graph.subgraph(comp1nodes)
         comp2 = the_graph.graph.subgraph(comp2nodes)
 
-        matcher = isomorphism.DiGraphMatcher(comp1, comp2, node_match=node_match)
-        subgraph_matches = matcher.subgraph_isomorphisms_iter()
-        match_set = next(subgraph_matches, None)
-        if match_set:
+        mcs = mcgregor(comp1, comp2, node_comparison=node_match, edge_comparison=edge_match)
+        if mcs.maximal_common_subgraphs and len(mcs.maximal_common_subgraphs[0]) > 1:
             print("\n###############################\n")
 
             if len(comp1nodes) > 1:
@@ -101,11 +97,9 @@ def match_all_components(the_graph):
 
             print("\n\n=======================\n\n")
 
-            for p1 in match_set.keys():
-                print("matched {} to {}".format(the_graph.people[p1], the_graph.people[match_set[p1]]))
-
-        for match_set in subgraph_matches:
-            print("\n\n=======================\n\n")
-
-            for p1 in match_set.keys():
-                print("matched {} to {}".format(the_graph.people[p1], the_graph.people[match_set[p1]]))
+            print(mcs)
+            for matching in mcs.maximal_common_subgraphs:
+                print("\n--------------------------\n")
+                for p1, p2 in matching.items():
+                    print("matched {} to {}".format(the_graph.graph.nodes[p1]["person"],
+                                                    the_graph.graph.nodes[p2]["person"]))
