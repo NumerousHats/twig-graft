@@ -78,7 +78,7 @@ class NodeMatching:
 
     def __str__(self):
         return "{} maximal common subgraphs with {} nodes and {} edges ({} nodes and {} edges removed)".format(
-            len(self.maximal_common_subgraphs), self.graph1.order() - self.maximal_nodes_removed,
+            len(self.maximal_common_subgraphs), len(self.node_matching) - self.maximal_nodes_removed,
             self.edges_in_maximal_subgraph, self.maximal_nodes_removed, self.maximal_edges_removed)
 
     def g1nodes(self):
@@ -101,11 +101,11 @@ class NodeMatching:
             self.maximal_common_subgraphs.append({k: v for (k, v) in self.assignments.items() if v is not None})
             self.edges_in_maximal_subgraph = self.edges_added
             logger.info("found a bigger common subgraph (%s nodes, %s edges)",
-                        self.graph1.order() - self.nodes_removed, self.edges_in_maximal_subgraph)
+                        len(self.node_matching) - self.nodes_removed, self.edges_in_maximal_subgraph)
         elif self.edges_added == self.edges_in_maximal_subgraph and self.nodes_removed == self.maximal_nodes_removed:
             self.maximal_common_subgraphs.append({k: v for (k, v) in self.assignments.items() if v is not None})
             logger.debug("found another common subgraph with %s nodes and %s edges",
-                         self.graph1.order() - self.nodes_removed, self.edges_in_maximal_subgraph)
+                         len(self.node_matching) - self.nodes_removed, self.edges_in_maximal_subgraph)
 
         if self.edges_removed < self.maximal_edges_removed:
             self.maximal_edges_removed = self.edges_removed
