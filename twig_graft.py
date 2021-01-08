@@ -33,8 +33,7 @@ def main():
         input_json = json.load(f)
 
     the_graph = graph_model.PeopleGraph(graph_json=input_json)
-    # the_graph.summarize()
-    match_all_components(the_graph)
+    match_components_in_location(the_graph)
 
 
 if __name__ == "__main__":
