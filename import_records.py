@@ -828,7 +828,6 @@ class BirthRecord(Record):
                                             name_parts={"given": mother_col, "surname": self.recorded_name["surname"]},
                                             thesaurus=self.thesaurus),
                                  sources=self.source)
-            # TODO add maiden name if we have mf information
 
             self.mother_rel = Relationship(self.mother.identifier, self.newborn.identifier,
                                            "parent-child", sources=self.source)
@@ -838,7 +837,7 @@ class BirthRecord(Record):
                                            sources=self.source)
 
     def set_father_ancestors(self, ff, fm, fmf_given, fmf_surname, fmm_given, fmm_surname):
-        surname = self.father.get_names()["surname"]
+        surname = self.father.get_names()["birth"]["surname"]
         if ff:
             self.ff = Person(gender="m", sources=self.source)
             self.add_annotated_name(self.mf, Name(name_type="birth", name_parts={"given": ff, "surname": surname},
@@ -887,53 +886,62 @@ class BirthRecord(Record):
         elif fmm_given:
             pass  # TODO
 
-    def set_mother_ancestors(self, mother, mothers_father, mothers_mother, mothers_mothers_father):
-        # TODO oh boy. lots of work needed here...
-
-        if mf_name:
-            self.mf = Person(gender="m", sources=self.source)
-            self.add_annotated_name(self.mf, Name(name_type="birth", name_parts=mf_name, thesaurus=self.thesaurus),
-                                    ["mothers_father"])
+    def set_mother_ancestors(self, mother, mf_given, mf_surname, mm, mmf_given, mmf_surname,
+                             mmm_given, mmm_surname, mmmf_given):
+        if mf_surname:
+            self.add_annotated_name(self.mother, Name(name_type="birth",
+                                                      name_parts={"given": mother, "surname": mf_surname},
+                                                      thesaurus=self.thesaurus),
+                                    ["mother", "m_father_surname"])
+            if mf_given:
+                self.mf = Person(gender="m", sources=self.source)
+                self.add_annotated_name(self.mf, Name(name_type="birth",
+                                                      name_parts={"given": mf_given, "surname": mf_surname},
+                                                      thesaurus=self.thesaurus),
+                                        ["m_father_given", "m_father_surname"])
+                if self.mother:
+                    self.m_mf_rel = Relationship(self.mf.identifier, self.mother.identifier, "parent-child",
+                                                 sources=self.source)
             if self.mother:
-                self.m_mf_rel = Relationship(self.mf.identifier, self.mother.identifier, "parent-child",
-                                             sources=self.source)
+                self.add_annotated_name(self.mother,
+                                        Name(name_type="birth",
+                                             name_parts={"given": mother, "surname": mf_surname},
+                                             thesaurus=self.thesaurus),
+                                        ["mother", "m_father_surname"])
 
-        if mothers_mother:
+        if mm:
             self.mm = Person(gender="f", sources=self.source)
+            if mf_surname:
+                name = {"given": mm, "surname": mf_surname}
+            else:
+                name = {"given": mm}
             self.add_annotated_name(self.mm,
-                                    Name(name_type="married",
-                                         name_parts={"given": mothers_mother,
-                                                     "surname": mf_name.get("surname", None)},
-                                         thesaurus=self.thesaurus),
-                                    ["mothers_mother", "mothers_father"])
-            if mmf_name and "surname" in mmf_name:
+                                    Name(name_type="married", name_parts=name, thesaurus=self.thesaurus),
+                                    ["m_mother", "m_father_surname"])
+            if mmf_surname:
                 self.add_annotated_name(self.mm,
                                         Name(name_type="birth",
-                                             name_parts={"given": mothers_mother,
-                                                         "surname": mmf_name.get("surname", None)},
+                                             name_parts={"given": mm, "surname": mmf_surname},
                                              thesaurus=self.thesaurus),
-                                        ["mothers_mother", "mothers_mothers_father"])
+                                        ["m_mother", "m_m_father_surname"])
             self.m_mm_rel = Relationship(self.mm.identifier, self.mother.identifier, "parent-child",
                                          sources=self.source)
 
         if self.mm and self.mf:
             self.mm_mf_rel = Relationship(self.mm.identifier, self.mf.identifier, "spouse", sources=self.source)
 
-        if mmf_name and "given" in mmf_name:
-            # i.e. only create a maternal grandfather Person if we know his given name
-
+        if mmf_given:
             self.mmf = Person(gender="m", sources=self.source)
-            self.add_annotated_name(self.mmf, Name(name_type="birth", name_parts=mmf_name, thesaurus=self.thesaurus),
-                                    ["mothers_mothers_father"])
+            if mmf_surname:
+                name = {"given": mmf_given, "surname": mmf_surname}
+            else:
+                name = {"given": mmf_given}
+            self.add_annotated_name(self.mmf, Name(name_type="birth", name_parts=name, thesaurus=self.thesaurus),
+                                    ["m_m_father_given", "m_m_father_surname"])
             self.mm_mmf_rel = Relationship(self.mmf.identifier, self.mm.identifier,
                                            "parent-child", sources=self.source)
 
-        if mf_name and "surname" in mf_name and self.mother:
-            self.add_annotated_name(self.mother,
-                                    Name(name_type="birth",
-                                         name_parts={"given": mother, "surname": mf_name["surname"]},
-                                         thesaurus=self.thesaurus),
-                                    ["mother", "mothers_father"])
+        # TODO deal with mmm and mmmf
 
 
 def import_births(filename, graph, thesaurus):
@@ -966,11 +974,13 @@ def import_births(filename, graph, thesaurus):
             this_record = BirthRecord(thesaurus, source, location, notes, confidence)
             this_record.newborn.gender = row["gender"]  # TODO deal with uncertain gender
 
-            # TODO deal with primogenitus
+            if row["primogenitus"]:
+                this_record.newborn.add_fact(Fact(fact_type="Primogenitus", sources=source))
 
             try:
                 if row["illegitimate"] == "y":
                     illegitimate = True
+                    this_record.newborn.add_fact(Fact(fact_type="IllegitimateBirth", sources=source))
                 else:
                     illegitimate = False
                 this_record.set_newborn_names(row["surname"], row["given_name"], row["m_father_surname"], illegitimate)
@@ -978,7 +988,11 @@ def import_births(filename, graph, thesaurus):
                 this_record.set_parents(row["father"], row["father_deceased"], row["mother"])
                 this_record.set_father_ancestors(row["father"], row["f_father"], row["f_mother"],
                                                  row["f_m_father_given"], row["f_m_father_surname"])
-
+                this_record.set_mother_ancestors(row["mother"], row["m_father_given"], row["m_father_surname"],
+                                                 row["m_mother"], row["m_m_father_given"], row["m_m_father_surname"],
+                                                 row["m_m_mother_given"], row["m_m_mother_surname"],
+                                                 row["m_m_m_father_given"])
+                # TODO deal with mother_spouse
             except (ParseError, InconsistentInputError):
                 logger.error("Row {} ({}) has inconsistent or malformed input".format(row_num, source))
                 continue
