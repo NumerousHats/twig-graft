@@ -696,6 +696,8 @@ class BirthRecord(Record):
         self.mmf = None
         self.mm_mmf_rel = None
 
+        self.illegitimate = None
+
         self.logger = logging.getLogger(__name__)
         self.maximum_age = datetime.timedelta(days=365 * 110)
 
@@ -745,7 +747,7 @@ class BirthRecord(Record):
         person.add_name(
             add_notes_confidence(name, self.notes, self.confidence, fields))
 
-    def set_newborn_names(self, surname_col, given_col, mf_surname_col, illegitimate):
+    def set_newborn_names(self, surname_col, given_col, mf_surname_col):
         """Set the names of the newborn. This is considerably simpler than the death record case, as the only
             complicating factor is legitimization of illegitimate births.
 
@@ -753,7 +755,6 @@ class BirthRecord(Record):
             surname_col (str or None): The contents of the "surname" column in the CSV file.
             given_col (str or None): The contents of the "given_name" column in the CSV file.
             mf_surname_col (str or None): The contents of the "m_father_surname" column of the CSV file.
-            illegitimate (bool): True if the birth was illegitimate.
         """
 
         self.recorded_name, aka_name, stillbirth = parse_name(surname_col, given_col)
@@ -795,24 +796,18 @@ class BirthRecord(Record):
                                     Fact(fact_type="Baptism", date=baptism_date,
                                          locations=self.location, sources=self.source),
                                     ["baptism_date", "year"])
-        else:
-            baptism_date = None
 
         if self.birth_date is None:
             self.logger.warning("Birth date missing. Nonstandard record?")
 
         if death_date_col:
-            death = Fact(fact_type="Death", sources=self.source)
-            death_date = parse_date(death_date_col, year_col)
-            death.add_date(death_date)
+            death = Fact(fact_type="Death", date=parse_date(death_date_col, year_col),sources=self.source)
             self.add_annotated_fact(self.newborn, death, ["death_date"])
 
-    def set_parents(self, father_col, father_deceased, mother_col):
+    def set_parents(self, surname, father_col, father_deceased, mother_col):
         if father_col:
             self.father = Person(gender="m",
-                                 names=Name(name_type="birth",
-                                            name_parts={"given": father_col,
-                                                        "surname": self.recorded_name["surname"]},
+                                 names=Name(name_type="birth", name_parts=parse_name(surname, father_col)[0],
                                             thesaurus=self.thesaurus),
                                  sources=self.source)
             self.father_rel = Relationship(self.father.identifier, self.newborn.identifier,
@@ -823,11 +818,12 @@ class BirthRecord(Record):
                 pass
 
         if mother_col:
-            self.mother = Person(gender="f",
-                                 names=Name(name_type="married",
-                                            name_parts={"given": mother_col, "surname": self.recorded_name["surname"]},
-                                            thesaurus=self.thesaurus),
-                                 sources=self.source)
+            self.mother = Person(gender="f", sources=self.source)
+            if not self.illegitimate:
+                self.add_annotated_name(self.mother, Name(name_type="married",
+                                                          name_parts=parse_name(surname, mother_col)[0],
+                                                          thesaurus=self.thesaurus),
+                                        ["surname", "mother"])
 
             self.mother_rel = Relationship(self.mother.identifier, self.newborn.identifier,
                                            "parent-child", sources=self.source)
@@ -836,26 +832,23 @@ class BirthRecord(Record):
             self.parent_rel = Relationship(self.father.identifier, self.mother.identifier, "spouse",
                                            sources=self.source)
 
-    def set_father_ancestors(self, ff, fm, fmf_given, fmf_surname, fmm_given, fmm_surname):
-        surname = self.father.get_names()["birth"]["surname"]
+    def set_father_ancestors(self, surname, ff, fm, fmf_given, fmf_surname, fmm_given, fmm_surname):
         if ff:
             self.ff = Person(gender="m", sources=self.source)
-            self.add_annotated_name(self.mf, Name(name_type="birth", name_parts={"given": ff, "surname": surname},
+            self.add_annotated_name(self.ff, Name(name_type="birth", name_parts=parse_name(surname, ff)[0],
                                                   thesaurus=self.thesaurus),
                                     ["f_father"])
             self.f_ff_rel = Relationship(self.ff.identifier, self.father.identifier, "parent-child",
                                          sources=self.source)
-
         if fm:
             self.fm = Person(gender="f", sources=self.source)
             self.add_annotated_name(self.fm,
-                                    Name(name_type="married", name_parts={"given": fm, "surname": surname},
+                                    Name(name_type="married", name_parts=parse_name(surname, fm)[0],
                                          thesaurus=self.thesaurus),
                                     ["f_mother"])
             if fmf_surname:
                 self.add_annotated_name(self.fm,
-                                        Name(name_type="birth",
-                                             name_parts={"given": fm, "surname": fmf_surname},
+                                        Name(name_type="birth", name_parts=parse_name(fmf_surname, fm)[0],
                                              thesaurus=self.thesaurus),
                                         ["f_mother", "f_m_father_surname"])
             self.f_fm_rel = Relationship(self.fm.identifier, self.father.identifier, "parent-child",
@@ -866,8 +859,7 @@ class BirthRecord(Record):
 
         if fmf_given:
             self.fmf = Person(gender="m", sources=self.source)
-            self.add_annotated_name(self.fmf, Name(name_type="birth",
-                                                   name_parts={"given": fmf_given, "surname": fmf_surname},
+            self.add_annotated_name(self.fmf, Name(name_type="birth", name_parts=parse_name(fmf_surname, fmf_given)[0],
                                                    thesaurus=self.thesaurus),
                                     ["f_m_father_given", "f_m_father_surname"])
             self.mm_mmf_rel = Relationship(self.fmf.identifier, self.fm.identifier,
@@ -875,11 +867,8 @@ class BirthRecord(Record):
 
         if fmm_surname:
             self.fmm = Person(gender="f", sources=self.source)
-            if fmm_given:
-                names = {"given": fmm_given, "surname": fmm_surname}
-            else:
-                names = {"surname": fmm_surname}
-            self.add_annotated_name(self.fmm, Name(name_type="birth", name_parts=names, thesaurus=self.thesaurus),
+            self.add_annotated_name(self.fmm, Name(name_type="birth", name_parts=parse_name(fmm_surname, fmm_given)[0],
+                                                   thesaurus=self.thesaurus),
                                     ["f_m_mother_given", "f_m_mother_surname"])
             self.fm_fmm_rel = Relationship(self.fmm.identifier, self.fm.identifier,
                                            "parent-child", sources=self.source)
@@ -889,39 +878,26 @@ class BirthRecord(Record):
     def set_mother_ancestors(self, mother, mf_given, mf_surname, mm, mmf_given, mmf_surname,
                              mmm_given, mmm_surname, mmmf_given):
         if mf_surname:
-            self.add_annotated_name(self.mother, Name(name_type="birth",
-                                                      name_parts={"given": mother, "surname": mf_surname},
+            self.add_annotated_name(self.mother, Name(name_type="birth", name_parts=parse_name(mf_surname, mother)[0],
                                                       thesaurus=self.thesaurus),
                                     ["mother", "m_father_surname"])
             if mf_given:
                 self.mf = Person(gender="m", sources=self.source)
-                self.add_annotated_name(self.mf, Name(name_type="birth",
-                                                      name_parts={"given": mf_given, "surname": mf_surname},
+                self.add_annotated_name(self.mf, Name(name_type="birth", name_parts=parse_name(mf_surname, mf_given)[0],
                                                       thesaurus=self.thesaurus),
                                         ["m_father_given", "m_father_surname"])
                 if self.mother:
                     self.m_mf_rel = Relationship(self.mf.identifier, self.mother.identifier, "parent-child",
                                                  sources=self.source)
-            if self.mother:
-                self.add_annotated_name(self.mother,
-                                        Name(name_type="birth",
-                                             name_parts={"given": mother, "surname": mf_surname},
-                                             thesaurus=self.thesaurus),
-                                        ["mother", "m_father_surname"])
-
         if mm:
             self.mm = Person(gender="f", sources=self.source)
-            if mf_surname:
-                name = {"given": mm, "surname": mf_surname}
-            else:
-                name = {"given": mm}
             self.add_annotated_name(self.mm,
-                                    Name(name_type="married", name_parts=name, thesaurus=self.thesaurus),
+                                    Name(name_type="married", name_parts=parse_name(mf_surname, mm)[0],
+                                         thesaurus=self.thesaurus),
                                     ["m_mother", "m_father_surname"])
             if mmf_surname:
                 self.add_annotated_name(self.mm,
-                                        Name(name_type="birth",
-                                             name_parts={"given": mm, "surname": mmf_surname},
+                                        Name(name_type="birth", name_parts=parse_name(mmf_surname, mm)[0],
                                              thesaurus=self.thesaurus),
                                         ["m_mother", "m_m_father_surname"])
             self.m_mm_rel = Relationship(self.mm.identifier, self.mother.identifier, "parent-child",
@@ -936,7 +912,8 @@ class BirthRecord(Record):
                 name = {"given": mmf_given, "surname": mmf_surname}
             else:
                 name = {"given": mmf_given}
-            self.add_annotated_name(self.mmf, Name(name_type="birth", name_parts=name, thesaurus=self.thesaurus),
+            self.add_annotated_name(self.mmf, Name(name_type="birth", name_parts=parse_name(mmf_surname, mmf_given)[0],
+                                                   thesaurus=self.thesaurus),
                                     ["m_m_father_given", "m_m_father_surname"])
             self.mm_mmf_rel = Relationship(self.mmf.identifier, self.mm.identifier,
                                            "parent-child", sources=self.source)
@@ -979,15 +956,17 @@ def import_births(filename, graph, thesaurus):
 
             try:
                 if row["illegitimate"] == "y":
-                    illegitimate = True
+                    this_record.illegitimate = True
                     this_record.newborn.add_fact(Fact(fact_type="IllegitimateBirth", sources=source))
                 else:
-                    illegitimate = False
-                this_record.set_newborn_names(row["surname"], row["given_name"], row["m_father_surname"], illegitimate)
+                    this_record.illegitimate = False
+                this_record.set_newborn_names(row["surname"], row["given_name"], row["m_father_surname"])
                 this_record.set_birth_death(row["birth_date"], row["baptism_date"], row["year"], row["death_date"])
-                this_record.set_parents(row["father"], row["father_deceased"], row["mother"])
-                this_record.set_father_ancestors(row["father"], row["f_father"], row["f_mother"],
-                                                 row["f_m_father_given"], row["f_m_father_surname"])
+                this_record.set_parents(row["surname"], row["father"], row["father_deceased"], row["mother"])
+                if row["father"]:
+                    this_record.set_father_ancestors(row["surname"], row["f_father"], row["f_mother"],
+                                                     row["f_m_father_given"], row["f_m_father_surname"],
+                                                     row["f_m_mother_given"], row["f_m_mother_surname"])
                 this_record.set_mother_ancestors(row["mother"], row["m_father_given"], row["m_father_surname"],
                                                  row["m_mother"], row["m_m_father_given"], row["m_m_father_surname"],
                                                  row["m_m_mother_given"], row["m_m_mother_surname"],
