@@ -81,8 +81,8 @@ def parse_name(surname_col, given_col):
     ({'surname': 'Smith', 'house_name': 'Jones', 'given': 'John'},
     {'surname': 'Smith', 'house_name': 'Jones', 'given': 'Shorty'}, False)
     """
-    recorded_name = None
-    aka_name = None
+    recorded_name = {}
+    aka_name = {}
     stillbirth = False
     if surname_col:
         surname, house_name = parse_alternate_name(surname_col)
@@ -114,6 +114,7 @@ def parse_date(date_string, year):
     Returns:
         Date
     """
+    logger = logging.getLogger(__name__)
     match = re.search(r'\d{4}-(\d{2})-(.{2,3})', date_string)
     if match:
         full_date = date_string
@@ -122,13 +123,16 @@ def parse_date(date_string, year):
         match = re.search(r'\d{4}-(\d{2})-(.{2,3})', full_date)
         if not match:
             raise ParseError
-
-    if match[2] != "[?]":
-        date = Date(full_date)
-    else:
-        start = full_date.replace("[?]", "01")
-        end = full_date.replace("[?]", str(calendar.monthrange(int(year), int(match[1]))[1]))
-        date = Date(start, end)
+    try:
+        if match[2] != "[?]":
+            date = Date(full_date)
+        else:
+            start = full_date.replace("[?]", "01")
+            end = full_date.replace("[?]", str(calendar.monthrange(int(year), int(match[1]))[1]))
+            date = Date(start, end)
+    except ValueError:
+        logger.error("cannot parse date {}".format(full_date))
+        raise ParseError()
 
     return date
 
@@ -891,10 +895,11 @@ class BirthRecord(Record):
                                                  sources=self.source)
         if mm:
             self.mm = Person(gender="f", sources=self.source)
-            self.add_annotated_name(self.mm,
-                                    Name(name_type="married", name_parts=parse_name(mf_surname, mm)[0],
-                                         thesaurus=self.thesaurus),
-                                    ["m_mother", "m_father_surname"])
+            if mf_surname:
+                self.add_annotated_name(self.mm,
+                                        Name(name_type="married", name_parts=parse_name(mf_surname, mm)[0],
+                                             thesaurus=self.thesaurus),
+                                        ["m_mother", "m_father_surname"])
             if mmf_surname:
                 self.add_annotated_name(self.mm,
                                         Name(name_type="birth", name_parts=parse_name(mmf_surname, mm)[0],
