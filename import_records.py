@@ -127,7 +127,7 @@ def parse_date(date_string, year):
         full_date = "{}-{}".format(year, date_string)
         match = re.search(r'\d{4}-(\d{2})-(.{2,3})', full_date)
         if not match:
-            raise ParseError
+            raise ParseError("could not parse date {}".format(date_string))
     try:
         if match[2] != "[?]":
             date = Date(full_date)
@@ -136,8 +136,8 @@ def parse_date(date_string, year):
             end = full_date.replace("[?]", str(calendar.monthrange(int(year), int(match[1]))[1]))
             date = Date(start, end)
     except ValueError:
-        logger.error("cannot parse date {}".format(full_date))
-        raise ParseError()
+        logger.error("cannot parse date {}".format(date_string))
+        raise ParseError("could not parse date {}".format(date_string))
 
     return date
 
@@ -256,7 +256,7 @@ class DeathRecord(Record):
             person.add_fact(
                 add_notes_confidence(fact, self.notes, self.confidence, fields))
         except AttributeError:
-            raise ParseError
+            raise ParseError("could not add {} to {}".format(fact, person))
 
     def add_annotated_name(self, person, name, fields):
         """Add a Name, along with any associated notes and confidence values, to a Person.
@@ -743,7 +743,7 @@ class BirthRecord(Record):
             person.add_fact(
                 add_notes_confidence(fact, self.notes, self.confidence, fields))
         except AttributeError:
-            raise ParseError
+            raise ParseError("could not add {} to {}".format(fact, person))
 
     def add_annotated_name(self, person, name, fields):
         """Add a Name, along with any associated notes and confidence values, to a Person.
@@ -790,7 +790,7 @@ class BirthRecord(Record):
         # TODO deal with legitimized name
 
     def set_birth_death(self, birth_date_col, baptism_date_col, year_col, death_date_col):
-        if birth_date_col:
+        if birth_date_col and "?" not in birth_date_col:  # TODO skip uncertain dates for now...
             self.birth_date = parse_date(birth_date_col, year_col)
             self.add_annotated_fact(self.newborn,
                                     Fact(fact_type="Birth", date=self.birth_date,
@@ -799,7 +799,7 @@ class BirthRecord(Record):
         else:
             self.birth_date = None
 
-        if baptism_date_col:
+        if baptism_date_col and "?" not in baptism_date_col:  # TODO skip uncertain dates for now...
             baptism_date = parse_date(baptism_date_col, year_col)
             self.add_annotated_fact(self.newborn,
                                     Fact(fact_type="Baptism", date=baptism_date,
@@ -809,8 +809,9 @@ class BirthRecord(Record):
         if self.birth_date is None:
             self.logger.warning("Birth date missing. Nonstandard record?")
 
-        if death_date_col:
-            death = Fact(fact_type="Death", date=parse_date(death_date_col, year_col),sources=self.source)
+        if death_date_col and "?" not in death_date_col and death_date_col[-1] != "-":
+            # TODO skip uncertain dates for now...
+            death = Fact(fact_type="Death", date=parse_date(death_date_col, year_col), sources=self.source)
             self.add_annotated_fact(self.newborn, death, ["death_date"])
 
     def set_parents(self, surname, father_col, father_deceased, mother_col):
@@ -989,8 +990,8 @@ def import_births(filename, graph, thesaurus):
                                                  row["m_m_mother_given"], row["m_m_mother_surname"],
                                                  row["m_m_m_father_given"])
                 # TODO deal with mother_spouse
-            except (ParseError, InconsistentInputError):
-                logger.error("Row {} ({}) has inconsistent or malformed input".format(row_num, source))
+            except (ParseError, InconsistentInputError) as e:
+                logger.error("Row {} ({}) has inconsistent or malformed input: {}".format(row_num, source, repr(e)))
                 continue
 
             # print(this_record.decedent)
