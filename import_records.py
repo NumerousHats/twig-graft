@@ -83,23 +83,28 @@ def parse_name(surname_col, given_col):
     """
     recorded_name = {}
     aka_name = {}
+    clear_brackets = re.compile(r"(\[([^ \t\n\r\f\v?]+?)])")
     stillbirth = False
     if surname_col:
         surname, house_name = parse_alternate_name(surname_col)
+        surname = re.sub(clear_brackets, r'\2', surname)
         recorded_name = {"surname": surname}
         if house_name:
+            house_name = re.sub(clear_brackets, r'\2', house_name)
             recorded_name["house_name"] = house_name
 
     if given_col:
         given, aka = parse_alternate_name(given_col)
-        if aka:
-            aka_name = recorded_name.copy()
-            aka_name["given"] = aka
-
         if given == "[stillbirth]":
             stillbirth = True
         else:
+            given = re.sub(clear_brackets, r'\2', given)
             recorded_name["given"] = given
+
+        if aka:
+            aka_name = recorded_name.copy()
+            aka = re.sub(clear_brackets, r'\2', aka)
+            aka_name["given"] = aka
 
     return recorded_name, aka_name, stillbirth
 
@@ -837,19 +842,23 @@ class BirthRecord(Record):
                                            sources=self.source)
 
     def set_father_ancestors(self, surname, ff, fm, fmf_given, fmf_surname, fmm_given, fmm_surname):
-        if ff:
+        if ff and ff != "[illegitimate]":
             self.ff = Person(gender="m", sources=self.source)
             self.add_annotated_name(self.ff, Name(name_type="birth", name_parts=parse_name(surname, ff)[0],
                                                   thesaurus=self.thesaurus),
                                     ["f_father"])
             self.f_ff_rel = Relationship(self.ff.identifier, self.father.identifier, "parent-child",
                                          sources=self.source)
+        if ff == "[illegitimate]":
+            self.father.add_fact(Fact(fact_type="IllegitimateBirth", sources=self.source))
+
         if fm:
             self.fm = Person(gender="f", sources=self.source)
-            self.add_annotated_name(self.fm,
-                                    Name(name_type="married", name_parts=parse_name(surname, fm)[0],
-                                         thesaurus=self.thesaurus),
-                                    ["f_mother"])
+            if ff and ff != "[illegitimate]":
+                self.add_annotated_name(self.fm,
+                                        Name(name_type="married", name_parts=parse_name(surname, fm)[0],
+                                             thesaurus=self.thesaurus),
+                                        ["f_mother"])
             if fmf_surname:
                 self.add_annotated_name(self.fm,
                                         Name(name_type="birth", name_parts=parse_name(fmf_surname, fm)[0],
@@ -861,13 +870,16 @@ class BirthRecord(Record):
         if self.ff and self.fm:
             self.ff_fm_rel = Relationship(self.fm.identifier, self.ff.identifier, "spouse", sources=self.source)
 
-        if fmf_given:
+        if fmf_given and fmf_given != "[illegitimate]":
             self.fmf = Person(gender="m", sources=self.source)
             self.add_annotated_name(self.fmf, Name(name_type="birth", name_parts=parse_name(fmf_surname, fmf_given)[0],
                                                    thesaurus=self.thesaurus),
                                     ["f_m_father_given", "f_m_father_surname"])
             self.mm_mmf_rel = Relationship(self.fmf.identifier, self.fm.identifier,
                                            "parent-child", sources=self.source)
+
+        if fmf_given == "[illegitimate]":
+            self.fm.add_fact(Fact(fact_type="IllegitimateBirth", sources=self.source))
 
         if fmm_surname:
             self.fmm = Person(gender="f", sources=self.source)
