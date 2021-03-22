@@ -876,7 +876,7 @@ class BirthRecord(Record):
             self.add_annotated_name(self.fmf, Name(name_type="birth", name_parts=parse_name(fmf_surname, fmf_given)[0],
                                                    thesaurus=self.thesaurus),
                                     ["f_m_father_given", "f_m_father_surname"])
-            self.mm_mmf_rel = Relationship(self.fmf.identifier, self.fm.identifier,
+            self.fm_fmf_rel = Relationship(self.fmf.identifier, self.fm.identifier,
                                            "parent-child", sources=self.source)
 
         if fmf_given == "[illegitimate]":

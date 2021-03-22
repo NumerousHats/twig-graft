@@ -31,6 +31,7 @@ class PeopleGraph:
                 relations.append((relation.from_id, relation.to_id, {"relation": relation}))
 
             self.graph.add_nodes_from([(k, {"person": self.people[k]}) for k in self.people.keys()])
+            # TODO the above is, of course, nuts. It's storing the same data twice...
             self.graph.add_edges_from(relations)
 
     def json(self):
