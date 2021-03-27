@@ -127,18 +127,20 @@ class Fact(Conclusion):
     related to marriages), the Fact(s) should be attached to the appropriate Relationship object.
 
     Attributes:
-        fact_type (str): The type of Fact. Should correspond to one of the Gedcom X Known Fact Types.
+        fact_type (str): The type of Fact. Should correspond to one of the Gedcom X Known Fact Types, with the
+            exception of the "Merged" fact for the "merged-into" relationship.
         content (str or int or None): Any string or numerical content associated with the fact. For example,
             in a "MaritalStatus" fact, the fact_content would be one of "Single", "Married", "Widowed", or
-            "Divorced". For "NumberOfMarriages" or "NumberOfChildren", this would be an integer.
-        date (list of Date): The date(s) or date range(s) associated with the fact. Date ranges are used to
+            "Divorced". For "NumberOfMarriages" or "NumberOfChildren", this would be an integer. A "Merged" fact
+            should contain the datetime string of the merge event.
+        date (list of Date or None): The date(s) or date range(s) associated with the fact. Date ranges are used to
             denote precision, e.g. an event that took place in 1862 but for which we do not have a recorded
             month or year should be Date("1862-01-01", "1862-12-31"). If the confidence level
             is normal, then this attribute should be a list containing only one Date element. If there
             are issues related to confidence or accuracy (e.g ambiguity related handwriting issues,
             possible typos, or year-day ambiguity in death records), then the list should contain multiple elements
             arranged in order from the most likely to the least likely.
-        age (list of Duration): The age of the individual at the time of the Fact. If the confidence level
+        age (list of Duration or None): The age of the individual at the time of the Fact. If the confidence level
             is normal, then this attribute should be a list containing only one Duration element. If there
             are issues related to date confidence or accuracy (e.g ambiguity related handwriting issues or
             possible typos), then the list should contain multiple elements arranged in order from the most likely
@@ -315,6 +317,7 @@ class Person(Conclusion):
         gender (str): The sex of the person.
         facts (list of Fact): Fact(s) regarding the person.
         identifier (str): A unique internal identifier for this person.
+        merged (bool): Flag indicating if this Person has been merged with another Person.
 
     Args:
         names (Name or list of Name or None): The name(s) of the person
@@ -334,6 +337,10 @@ class Person(Conclusion):
             else:
                 self.facts = None
             self.identifier = json_dict["identifier"]
+            if "merged" in json_dict:
+                self.merged = True
+            else:
+                self.merged = False
         else:
             super().__init__(sources=sources, notes=notes, confidence=confidence)
             if names:
@@ -355,6 +362,7 @@ class Person(Conclusion):
 
             self.gender = gender
             self.identifier = str(uuid.uuid4())
+            self.merged = False
 
     def json(self):
         output = {"identifier": self.identifier, "gender": self.gender}
@@ -362,6 +370,8 @@ class Person(Conclusion):
             output.update({"names": [x.json() for x in self.names]})
         if self.facts:
             output.update({"facts": [x.json() for x in self.facts]})
+        if self.merged:
+            output.update({"merged": "True"})
         output.update(super().json())
         return output
 
@@ -396,24 +406,42 @@ class Person(Conclusion):
         for loc in locations:
             output.append(str(loc))
 
+        if self.merged:
+            output.insert(0, "[merged]")
+
         return " ".join(output)
 
-    def add_fact(self, fact):
-        if self.facts is None:
-            self.facts = [fact]
-        else:
-            self.facts.append(fact)
+    def add_fact(self, facts):
+        if facts is None:
+            return
 
-    def add_name(self, name):
-        if type(name) is not Name:
-            raise ValueError("only Name objects can be added as the name of a Person")
+        if type(facts) is not list:
+            facts = [facts]
 
-        if self.names is None:
-            self.names = [name]
-        else:
-            self.names.append(name)
-            if len([n for n in self.names if n.name_type == "birth"]) > 1:
-                raise ValueError("a Person can only have one birth Name")
+        for fact in facts:
+            if self.facts is None:
+                self.facts = [fact]
+            else:
+                self.facts.append(fact)
+
+    def add_name(self, names):
+        if names is None:
+            return
+
+        if type(names) is not list:
+            names = [names]
+
+        for name in names:
+            if type(name) is not Name:
+                raise ValueError("only Name objects can be added as the name of a Person")
+
+            if self.names is None:
+                self.names = [name]
+            else:
+                self.names.append(name)
+                # TODO temporarily eliminate this checking to allow for simpler merging of Persons
+                # if len([n for n in self.names if n.name_type == "birth"]) > 1:
+                #     raise ValueError("a Person can only have one birth Name")
 
     def summarize(self):
         """A longer-form text summary of a Person object."""
@@ -474,6 +502,65 @@ class Person(Conclusion):
         locations = [item for sublist in loc for item in sublist]
         return list(set(locations))
 
+    def merge(self, other, note=None):
+        """Merge a Person object with the "self" Person and returns the result along with two "merged-into"
+            Relationships. Neither original Person object is modified, other than to set the "merged" attribute
+            to True.
+
+        Args:
+            other (Person): The Person that is to be merged with self.
+            note (str): Any information on the nature of the merge event.
+
+        Returns:
+            A tuple containing the merged Person object and two "merged-into" Relationships.
+        """
+        merge_time = str(datetime.datetime.now())
+        new_person = Person()
+
+        self_merged_rel = Relationship(self.identifier, new_person.identifier, relationship_type="merged-into",
+                                       facts=Fact("Merged", content=merge_time))
+        if note:
+            self_merged_rel.add_note(note)
+
+        other_merged_rel = Relationship(other.identifier, new_person.identifier,
+                                        relationship_type="merged-into", facts=Fact("Merged", content=merge_time))
+        if note:
+            other_merged_rel.add_note(note)
+
+        # TODO make this more intelligent
+        new_person.add_name(self.names)
+        new_person.add_name(other.names)
+
+        if self.gender and other.gender:
+            if self.gender == other.gender:
+                new_person.gender = self.gender
+            else:
+                new_person.gender = None
+        elif self.gender:
+            new_person.gender = self.gender
+        elif other.gender:
+            new_person.gender = other.gender
+
+        # TODO make this more intelligent
+        new_person.add_fact(self.facts)
+        new_person.add_fact(other.facts)
+
+        if self.notes and other.notes:
+            new_person.notes = self.notes + other.notes
+        elif not self.notes:
+            new_person.notes = self.notes
+        elif other.notes:
+            new_person.notes = other.notes
+
+        confidences = [self.confidence, other.confidence]
+        if "low" in confidences:
+            new_person.confidence = "low"
+
+        self.merged = True
+        other.merged = True
+
+        return new_person, self_merged_rel, other_merged_rel
+
 
 class Relationship(Conclusion):
     """A description of a relationship between two Persons.
@@ -483,7 +570,7 @@ class Relationship(Conclusion):
             relationship_type, this is the parent. For a "spouse" relationship_type, this is the husband.
         to_id (str): Internal identifier of the "destination" Person of the relationship. For a "parent-child"
             relationship_type, this is the child. For a "spouse" relationship_type, this is the wife.
-        relationship_type (str): The type of relationship. Must be either "spouse" or "parent-child".
+        relationship_type (str): The type of relationship. Must be either "spouse", "parent-child", or "merged-into".
         facts (list of Fact): Fact(s) relating to the relationship, generally a birth/baptism or marriage.
         identifier (str): A unique internal identifier for this relationship.
 
@@ -505,8 +592,9 @@ class Relationship(Conclusion):
                 self.facts = None
         else:
             super().__init__(sources=sources, notes=notes, confidence=confidence)
-            if relationship_type != "spouse" and relationship_type != "parent-child":
-                raise ValueError("relationship_type must be 'spouse' or 'parent-child'")
+            if relationship_type != "spouse" and relationship_type != "parent-child" \
+                    and relationship_type != "merged-into":
+                raise ValueError("relationship_type must be 'spouse', 'parent-child', or 'merged-into'")
 
             if type(facts) is list or facts is None:
                 self.facts = facts
@@ -526,11 +614,76 @@ class Relationship(Conclusion):
         output.update(super().json())
         return output
 
-    def add_fact(self, fact):
-        if self.facts is None:
-            self.facts = [fact]
-        else:
-            self.facts.append(fact)
+    def add_fact(self, facts):
+        if facts is None:
+            return
+
+        if type(facts) is not list:
+            facts = [facts]
+
+        for fact in facts:
+            if self.facts is None:
+                self.facts = [fact]
+            else:
+                self.facts.append(fact)
+
+    def add_note(self, notes):
+        if notes is None:
+            return
+
+        if type(notes) is not list:
+            notes = [notes]
+
+        for note in notes:
+            if self.notes is None:
+                self.notes = [note]
+            else:
+                self.notes.append(note)
+
+    def merge(self, other):
+        """Merge a Relationship object with the "self" Relationship and returns the result.
+            Neither original Relationship object is modified.
+
+        Args:
+            other (Relationship): The Relationship that is to be merged with self.
+
+        Returns:
+            The merged Relationship object.
+        """
+        if self.from_id != other.from_id:
+            raise ValueError("attempting to merge relationships with different from_id values")
+        if self.to_id != other.to_id:
+            raise ValueError("attempting to merge relationships with different to_id values")
+        if self.relationship_type != other.relationship_type:
+            raise ValueError("attempting to merge relationships of different types")
+
+        new_relation = Relationship(self.from_id, self.to_id, self.relationship_type)
+
+        # facts = None,
+        # sources = None, notes = None, confidence = "normal",
+        #
+
+        # TODO make this more intelligent
+        new_relation.add_fact(self.facts)
+        new_relation.add_fact(other.facts)
+
+        if self.notes and other.notes:
+            new_relation.notes = self.notes + other.notes
+        elif not self.notes:
+            new_relation.notes = self.notes
+        elif other.notes:
+            new_relation.notes = other.notes
+
+        confidences = [self.confidence, other.confidence]
+        if "low" in confidences:
+            new_relation.confidence = "low"
+
+        new_relation.sources = self.sources
+        if other.sources:
+            for source in other.sources:
+                new_relation.add_source(source)
+
+        return new_relation
 
 
 class Location(Statement):
