@@ -35,10 +35,10 @@ class PeopleGraph:
             self.graph.add_edges_from(relations)
 
     def json(self):
-        graph = {"persons": [x.json() for x in self.people.values()], "relations": []}
+        graph_json = {"persons": [x.json() for x in self.people.values()], "relations": []}
         for (u, v, relation) in self.graph.edges.data('relation'):
-            graph["relations"].append(relation.json())
-        return graph
+            graph_json["relations"].append(relation.json())
+        return graph_json
 
     def __repr__(self):
         return json.dumps(self.json())

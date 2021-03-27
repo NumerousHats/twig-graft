@@ -166,10 +166,10 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
                         n2_2 = matching.assignments.get(n2, g2node)
                         logger.debug('Comparing %s %s pair to %s %s', n1, n2, n1_2, n2_2)
                         compatible_edge = False
-                        if graph2.has_edge(n1_2, n2_2):
+                        if matching.graph2.has_edge(n1_2, n2_2):
                             logger.debug("Both graphs have an edge")
                             if edge_comparison:
-                                if edge_comparison(graph1, graph2, n1, n2, n1_2, n2_2):
+                                if edge_comparison(matching.graph1, matching.graph2, n1, n2, n1_2, n2_2):
                                     compatible_edge = True
                                 else:
                                     logger.debug("Edges are incompatible")
