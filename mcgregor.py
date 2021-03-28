@@ -121,8 +121,8 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
     subgraph of two input graphs subject to constraints on node and edge attributes.
 
      Args:
-         graph1 (nx.Graph): The first input graph.
-         graph2 (nx.Graph): The second input graph.
+         graph1 (nx.Graph): The input graph with the smaller degree.
+         graph2 (nx.Graph): The input graph with the larger degree.
          node_comparison: A function that returns True if two nodes have compatible attributes. The function should
             have 4 arguments, namely, graph1, graph2, a node in graph1, and a node in graph2.
          edge_comparison: A function that returns True if two edges have compatible attributes. The function should
@@ -252,23 +252,19 @@ def mcgregor(graph1, graph2, node_comparison=None, edge_comparison=None):
     else:
         raise TypeError
 
-    if graph1.number_of_nodes() < graph2.number_of_nodes():
-        small = graph1
-        big = graph2
-    else:
-        small = graph2
-        big = graph1
+    if graph1.number_of_nodes() > graph2.number_of_nodes():
+        raise ValueError("graph1 must not have greater degree than graph2")
 
     if node_comparison:
         node_matches = defaultdict(list)
-        for s_node in small.nodes:
-            for b_node in big.nodes:
-                if node_comparison(small, big, s_node, b_node):
+        for s_node in graph1.nodes:
+            for b_node in graph2.nodes:
+                if node_comparison(graph1, graph2, s_node, b_node):
                     node_matches[s_node].append(b_node)
     else:
         node_matches = None
 
-    mcs = NodeMatching(small, big, node_matches)
+    mcs = NodeMatching(graph1, graph2, node_matches)
     if mcs.node_matching:
         graph_matcher(mcs)
         logger.info("found %s maximal common subgraphs with %s nodes and %s edges",
