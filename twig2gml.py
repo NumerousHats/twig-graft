@@ -10,7 +10,8 @@ from graph_match import *
 
 @click.command()
 @click.argument('infile')
-def cli(infile):
+@click.option('--no-merged', is_flag=True)
+def cli(infile, no_merged):
     logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', level=logging.WARNING)
     outfile = infile.replace(".json", ".gml")
 
@@ -19,9 +20,15 @@ def cli(infile):
 
     people_graph = graph_model.PeopleGraph(graph_json=input_json)
     the_graph = people_graph.graph
-    for (n, d) in the_graph.nodes(data=True):
+    if no_merged:
+        output_graph = the_graph.subgraph([node for node, attr in the_graph.nodes(data=True)
+                                           if not attr['person'].merged])
+    else:
+        output_graph = the_graph
+    for (n, d) in output_graph.nodes(data=True):
+        thing = str(d["person"])
         d["person"] = str(d["person"])
-    for (u, v, d) in the_graph.edges(data=True):
+    for (u, v, d) in output_graph.edges(data=True):
         d["relation"] = d["relation"].relationship_type
 
     nx.write_gml(the_graph, outfile)
