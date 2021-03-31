@@ -21,14 +21,11 @@ def cli(infile, no_merged):
     people_graph = graph_model.PeopleGraph(graph_json=input_json)
     the_graph = people_graph.graph
     if no_merged:
-        output_graph = the_graph.subgraph([node for node, attr in the_graph.nodes(data=True)
-                                           if not attr['person'].merged])
-    else:
-        output_graph = the_graph
-    for (n, d) in output_graph.nodes(data=True):
-        thing = str(d["person"])
+        the_graph.remove_nodes_from([n for n in the_graph if the_graph.nodes[n]['person'].merged])
+
+    for (n, d) in the_graph.nodes(data=True):
         d["person"] = str(d["person"])
-    for (u, v, d) in output_graph.edges(data=True):
+    for (u, v, d) in the_graph.edges(data=True):
         d["relation"] = d["relation"].relationship_type
 
     nx.write_gml(the_graph, outfile)
