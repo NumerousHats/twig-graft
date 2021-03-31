@@ -66,6 +66,12 @@ def main():
 
             logger.debug("good match, merging")
             for p1, p2 in match.items():
+                # get predecessors and successors pre-merge for later use
+                p1_succ = {node for node in the_graph.successors(p1) if not the_graph.nodes[node]["person"].merged}
+                p1_pred = {node for node in the_graph.predecessors(p1) if not the_graph.nodes[node]["person"].merged}
+                p2_succ = {node for node in the_graph.successors(p2) if not the_graph.nodes[node]["person"].merged}
+                p2_pred = {node for node in the_graph.predecessors(p2) if not the_graph.nodes[node]["person"].merged}
+
                 # merge nodes
                 merged_person, p1_merge_rel, p2_merge_rel = the_graph.nodes[p1]["person"].\
                     merge(the_graph.nodes[p2]["person"])
@@ -83,30 +89,51 @@ def main():
                     target.remove(p2)
 
                 # reroute or merge edges
-                p1_succ = set(the_graph.successors(p1))
-                p1_pred = set(the_graph.predecessors(p1))
-                p2_succ = set(the_graph.successors(p2))
-                p2_pred = set(the_graph.predecessors(p2))
-
                 for neighbor in p1_succ - p2_succ:
                     # reroute (p1, neighbor) edge to (merged_person, neighbor)
-                    pass
+                    relation = the_graph.edges[p1, neighbor]["relation"]
+                    relation.from_id = merged_id
+                    the_graph.remove_edge(p1, neighbor)
+                    the_graph.add_edge(merged_id, neighbor, relation=relation)
                 for neighbor in p2_succ - p1_succ:
                     # reroute (p2, neighbor) edge to (merged_person, neighbor)
-                    pass
+                    relation = the_graph.edges[p2, neighbor]["relation"]
+                    relation.from_id = merged_id
+                    the_graph.remove_edge(p2, neighbor)
+                    the_graph.add_edge(merged_id, neighbor, relation=relation)
                 for neighbor in p1_pred - p2_pred:
                     # reroute (neighbor, p1) edge to (neighbor, merged_person)
-                    pass
+                    relation = the_graph.edges[neighbor, p1]["relation"]
+                    relation.to_id = merged_id
+                    the_graph.remove_edge(neighbor, p1)
+                    the_graph.add_edge(neighbor, merged_id, relation=relation)
                 for neighbor in p2_pred - p1_pred:
                     # reroute (neighbor, p2) edge to (neighbor, merged_person)
-                    pass
+                    relation = the_graph.edges[neighbor, p2]["relation"]
+                    relation.to_id = merged_id
+                    the_graph.remove_edge(neighbor, p2)
+                    the_graph.add_edge(neighbor, merged_id, relation=relation)
 
                 for neighbor in p1_succ & p2_succ:
                     # merge the (p1, neighbor) and (p2, neighbor) edges and connect it to merged_person
-                    pass
+                    relation1 = the_graph.edges[p1, neighbor]["relation"]
+                    relation1.from_id = merged_id
+                    relation2 = the_graph.edges[p2, neighbor]["relation"]
+                    relation2.from_id = merged_id
+                    merged_relation = relation1.merge(relation2)
+                    the_graph.remove_edge(p1, neighbor)
+                    the_graph.remove_edge(p2, neighbor)
+                    the_graph.add_edge(merged_id, neighbor, relation=merged_relation)
                 for neighbor in p1_pred & p2_pred:
                     # merge the (neighbor, p1) and (neighbor, p2) edges and connect it to merged_person
-                    pass
+                    relation1 = the_graph.edges[neighbor, p1]["relation"]
+                    relation1.to_id = merged_id
+                    relation2 = the_graph.edges[neighbor, p2]["relation"]
+                    relation2.to_id = merged_id
+                    merged_relation = relation1.merge(relation2)
+                    the_graph.remove_edge(neighbor, p1)
+                    the_graph.remove_edge(neighbor, p2)
+                    the_graph.add_edge(neighbor, merged_id, relation=merged_relation)
 
             # add any additional component nodes to target
             for person in component:
