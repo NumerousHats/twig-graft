@@ -29,7 +29,7 @@ def main():
     the_graph = the_graph_model.graph
     the_graph_not_merged = the_graph.subgraph([node for node in the_graph.nodes
                                                if not the_graph.nodes[node]["person"].merged])
-    components_queue = sorted(list(nx.weakly_connected_components(the_graph_not_merged)), key=len, reverse=True)
+    components_queue = sorted(list(nx.weakly_connected_components(the_graph_not_merged)), key=len)
     processed_components = []
 
     while components_queue:
@@ -51,17 +51,15 @@ def main():
                 mcs = mcgregor(target_graph, component_graph, node_comparison=node_match, edge_comparison=edge_match)
 
             if not mcs.maximal_common_subgraphs:
-                processed_components.append(component)
+                logger.info("no common subgraph")
                 continue
             if len(mcs.maximal_common_subgraphs) > 1:
                 logger.info("multiple maximal common subgraphs, skipping")
-                processed_components.append(component)
                 continue
 
             match = mcs.maximal_common_subgraphs[0]
             if len(match) < 5:
                 logger.debug("match not big enough")
-                processed_components.append(component)
                 continue
 
             logger.debug("good match, merging")
@@ -139,6 +137,8 @@ def main():
             for person in component:
                 if person not in target and not the_graph.nodes[person]["person"].merged:
                     target.append(person)
+
+        processed_components.append(component)
 
     with open('dum2.json', 'w') as json_file:
         json.dump(the_graph_model.json(), json_file, indent=2)
