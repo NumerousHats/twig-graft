@@ -29,26 +29,28 @@ def main():
     the_graph = the_graph_model.graph
     the_graph_not_merged = the_graph.subgraph([node for node in the_graph.nodes
                                                if not the_graph.nodes[node]["person"].merged])
-    components_queue = sorted(list(nx.weakly_connected_components(the_graph_not_merged)), key=len)
-    processed_components = []
+    twig_queue = sorted(list(nx.weakly_connected_components(the_graph_not_merged)), key=len)
+    processed_twigs = []
 
-    while components_queue:
-        component = list(components_queue.pop())
-        component_graph = the_graph.subgraph(component)
+    while twig_queue:
+        new_twig = list(twig_queue.pop())
+        new_twig_graph = the_graph.subgraph(new_twig)
 
-        if not processed_components:
-            processed_components = [component]
+        if not processed_twigs:
+            processed_twigs = [new_twig]
             continue
 
-        for target in processed_components:
-            logger.debug("attempting to merge {} with {}".format(component, target))
-            target_graph = the_graph.subgraph(target)
-            if len(component) < len(target):
+        for target_twig in processed_twigs:
+            logger.debug("attempting to merge {} with {}".format(new_twig, target_twig))
+            target_twig_graph = the_graph.subgraph(target_twig)
+            if len(new_twig) < len(target_twig):
                 flipped = False
-                mcs = mcgregor(component_graph, target_graph, node_comparison=node_match, edge_comparison=edge_match)
+                mcs = mcgregor(new_twig_graph, target_twig_graph,
+                               node_comparison=node_match, edge_comparison=edge_match)
             else:
                 flipped = True
-                mcs = mcgregor(target_graph, component_graph, node_comparison=node_match, edge_comparison=edge_match)
+                mcs = mcgregor(target_twig_graph, new_twig_graph,
+                               node_comparison=node_match, edge_comparison=edge_match)
 
             if not mcs.maximal_common_subgraphs:
                 logger.info("no common subgraph")
@@ -80,11 +82,11 @@ def main():
                 the_graph.add_edge(p2_merge_rel.from_id, p2_merge_rel.to_id, relation=p2_merge_rel)
 
                 # update nodes in target
-                target.append(merged_person.identifier)
-                if p1 in target:
-                    target.remove(p1)
-                if p2 in target:
-                    target.remove(p2)
+                target_twig.append(merged_person.identifier)
+                if p1 in target_twig:
+                    target_twig.remove(p1)
+                if p2 in target_twig:
+                    target_twig.remove(p2)
 
                 # reroute or merge edges
                 for neighbor in p1_succ - p2_succ:
@@ -134,11 +136,11 @@ def main():
                     the_graph.add_edge(neighbor, merged_id, relation=merged_relation)
 
             # add any additional component nodes to target
-            for person in component:
-                if person not in target and not the_graph.nodes[person]["person"].merged:
-                    target.append(person)
+            for person in new_twig:
+                if person not in target_twig and not the_graph.nodes[person]["person"].merged:
+                    target_twig.append(person)
 
-        processed_components.append(component)
+        processed_twigs.append(new_twig)
 
     with open('dum2.json', 'w') as json_file:
         json.dump(the_graph_model.json(), json_file, indent=2)
