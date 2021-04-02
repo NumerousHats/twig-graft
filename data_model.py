@@ -463,6 +463,13 @@ class Person(Conclusion):
                 out[name.name_type].append(name)
         return out
 
+    def standardized_surnames(self):
+        out = set()
+        if self.names:
+            for name in self.names:
+                out = out | {name.standard_surname}
+        return out
+
     def get_facts(self):
         out = defaultdict(list)
         if self.facts:

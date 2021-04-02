@@ -1,6 +1,10 @@
 import json
 import logging
+from collections import defaultdict
+import uuid
+
 import networkx as nx
+
 import comparison
 import graph_model
 from mcgregor import mcgregor
@@ -14,6 +18,13 @@ def edge_match(g1, g2, n1_in_g1, n2_in_g1, n1_in_g2, n2_in_g2):
     type1 = g1.edges[n1_in_g1, n2_in_g1]["relation"].relationship_type
     type2 = g2.edges[n1_in_g2, n2_in_g2]["relation"].relationship_type
     return type1 == type2
+
+
+def add_processed_twig(new_twig, new_twig_surnames, processed_twigs, surname_index):
+    id = str(uuid.uuid4())
+    processed_twigs[id] = new_twig
+    for name in new_twig_surnames:
+        surname_index[name] = surname_index[name] | {id}
 
 
 def main():
@@ -30,17 +41,31 @@ def main():
     the_graph_not_merged = the_graph.subgraph([node for node in the_graph.nodes
                                                if not the_graph.nodes[node]["person"].merged])
     twig_queue = sorted(list(nx.weakly_connected_components(the_graph_not_merged)), key=len)
-    processed_twigs = []
+    processed_twigs = {}
+    surname_index = defaultdict(set)
+
+    minimum_match_size = 5
 
     while twig_queue:
         new_twig = list(twig_queue.pop())
+        if len(new_twig) < minimum_match_size:
+            logger.debug("twig too small to achieve minimum match size, terminating")
+            break
+
         new_twig_graph = the_graph.subgraph(new_twig)
+        new_twig_surnames = [the_graph.nodes[person_id]["person"].standardized_surnames() for person_id in new_twig]
+        new_twig_surnames = set().union(*new_twig_surnames)
 
         if not processed_twigs:
-            processed_twigs = [new_twig]
+            add_processed_twig(new_twig, new_twig_surnames, processed_twigs, surname_index)
             continue
 
-        for target_twig in processed_twigs:
+        targets = set()
+        for name in new_twig_surnames:
+            targets = targets | surname_index[name]
+
+        for target_key in targets:
+            target_twig = processed_twigs[target_key]
             logger.debug("attempting to merge {} with {}".format(new_twig, target_twig))
             target_twig_graph = the_graph.subgraph(target_twig)
             if len(new_twig) < len(target_twig):
@@ -60,7 +85,7 @@ def main():
                 continue
 
             match = mcs.maximal_common_subgraphs[0]
-            if len(match) < 5:
+            if len(match) < minimum_match_size:
                 logger.debug("match not big enough")
                 continue
 
@@ -140,10 +165,13 @@ def main():
                 if person not in target_twig and not the_graph.nodes[person]["person"].merged:
                     target_twig.append(person)
 
-        processed_twigs.append(new_twig)
+            # we're done, no need to look for further matches
+            break
 
-    with open('dum2.json', 'w') as json_file:
-        json.dump(the_graph_model.json(), json_file, indent=2)
+        add_processed_twig(new_twig, new_twig_surnames, processed_twigs, surname_index)
+
+        with open('dum2.json', 'w') as json_file:
+            json.dump(the_graph_model.json(), json_file, indent=2)
 
 
 if __name__ == "__main__":
