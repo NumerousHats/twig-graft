@@ -108,6 +108,7 @@ def main():
                 continue
 
             logger.debug("good match, merging")
+            merge_successful = True
             for p1, p2 in match.items():
                 # get predecessors and successors pre-merge for later use
                 p1_succ = {node for node in the_graph.successors(p1) if not the_graph.nodes[node]["person"].merged}
