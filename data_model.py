@@ -521,6 +521,9 @@ class Person(Conclusion):
         Returns:
             A tuple containing the merged Person object and two "merged-into" Relationships.
         """
+        if self.merged or other.merged:
+            raise ValueError("cannot merge a Person that has previously been merged")
+
         merge_time = str(datetime.datetime.now())
         new_person = Person()
 

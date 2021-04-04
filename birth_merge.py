@@ -2,6 +2,7 @@ import json
 import logging
 from collections import defaultdict
 import uuid
+from copy import deepcopy
 
 import networkx as nx
 
@@ -18,6 +19,18 @@ def edge_match(g1, g2, n1_in_g1, n2_in_g1, n1_in_g2, n2_in_g2):
     type1 = g1.edges[n1_in_g1, n2_in_g1]["relation"].relationship_type
     type2 = g2.edges[n1_in_g2, n2_in_g2]["relation"].relationship_type
     return type1 == type2
+
+
+def twig_dump(twig, graph):
+    print("\n")
+    for node in twig:
+        print(str(graph.nodes[node]["person"]))
+    print("\n")
+
+    twig_graph = graph.subgraph(twig)
+
+    for u, v, a in twig_graph.edges.data('relation'):
+        print("{} {} {}".format(u[:7], v[:7], a.relationship_type))
 
 
 def add_processed_twig(new_twig, new_twig_surnames, processed_twigs, surname_index):
@@ -64,8 +77,13 @@ def main():
         for name in new_twig_surnames:
             targets = targets | surname_index[name]
 
+        if not targets:
+            add_processed_twig(new_twig, new_twig_surnames, processed_twigs, surname_index)
+            continue
+
+        merge_successful = False
         for target_key in targets:
-            target_twig = processed_twigs[target_key]
+            target_twig = deepcopy(processed_twigs[target_key])
             logger.debug("attempting to merge {} with {}".format(new_twig, target_twig))
             target_twig_graph = the_graph.subgraph(target_twig)
             if len(new_twig) < len(target_twig):
@@ -105,42 +123,39 @@ def main():
                 the_graph.add_node(merged_id, person=merged_person)
                 the_graph.add_edge(p1_merge_rel.from_id, p1_merge_rel.to_id, relation=p1_merge_rel)
                 the_graph.add_edge(p2_merge_rel.from_id, p2_merge_rel.to_id, relation=p2_merge_rel)
-
-                # update nodes in target
-                target_twig.append(merged_person.identifier)
-                if p1 in target_twig:
-                    target_twig.remove(p1)
-                if p2 in target_twig:
-                    target_twig.remove(p2)
+                target_twig.append(merged_id)
 
                 # reroute or merge edges
                 for neighbor in p1_succ - p2_succ:
-                    # reroute (p1, neighbor) edge to (merged_person, neighbor)
+                    logger.debug("rerouting ({0}, {1}) to ({2}, {1})".format(p1, neighbor, merged_id))
                     relation = the_graph.edges[p1, neighbor]["relation"]
                     relation.from_id = merged_id
                     the_graph.remove_edge(p1, neighbor)
                     the_graph.add_edge(merged_id, neighbor, relation=relation)
                 for neighbor in p2_succ - p1_succ:
-                    # reroute (p2, neighbor) edge to (merged_person, neighbor)
+                    logger.debug("rerouting ({0}, {1}) to ({2}, {1})".format(p2, neighbor, merged_id))
                     relation = the_graph.edges[p2, neighbor]["relation"]
                     relation.from_id = merged_id
                     the_graph.remove_edge(p2, neighbor)
                     the_graph.add_edge(merged_id, neighbor, relation=relation)
                 for neighbor in p1_pred - p2_pred:
-                    # reroute (neighbor, p1) edge to (neighbor, merged_person)
+                    logger.debug("rerouting ({1}, {0}) to ({1}, {2})".format(p1, neighbor, merged_id))
                     relation = the_graph.edges[neighbor, p1]["relation"]
                     relation.to_id = merged_id
                     the_graph.remove_edge(neighbor, p1)
                     the_graph.add_edge(neighbor, merged_id, relation=relation)
                 for neighbor in p2_pred - p1_pred:
-                    # reroute (neighbor, p2) edge to (neighbor, merged_person)
+                    logger.debug("rerouting ({1}, {0}) to ({1}, {2})".format(p2, neighbor, merged_id))
                     relation = the_graph.edges[neighbor, p2]["relation"]
                     relation.to_id = merged_id
                     the_graph.remove_edge(neighbor, p2)
                     the_graph.add_edge(neighbor, merged_id, relation=relation)
 
                 for neighbor in p1_succ & p2_succ:
-                    # merge the (p1, neighbor) and (p2, neighbor) edges and connect it to merged_person
+                    logger.debug("doing edge merge of ({0}, {2}) to ({1}, {2}) and connecting to {3}".format(p1,
+                                                                                                             p2,
+                                                                                                             neighbor,
+                                                                                                             merged_id))
                     relation1 = the_graph.edges[p1, neighbor]["relation"]
                     relation1.from_id = merged_id
                     relation2 = the_graph.edges[p2, neighbor]["relation"]
@@ -150,7 +165,10 @@ def main():
                     the_graph.remove_edge(p2, neighbor)
                     the_graph.add_edge(merged_id, neighbor, relation=merged_relation)
                 for neighbor in p1_pred & p2_pred:
-                    # merge the (neighbor, p1) and (neighbor, p2) edges and connect it to merged_person
+                    logger.debug("doing edge merge of ({2}, {0}) to ({2}, {1}) and connecting to {3}".format(p1,
+                                                                                                             p2,
+                                                                                                             neighbor,
+                                                                                                             merged_id))
                     relation1 = the_graph.edges[neighbor, p1]["relation"]
                     relation1.to_id = merged_id
                     relation2 = the_graph.edges[neighbor, p2]["relation"]
@@ -162,16 +180,19 @@ def main():
 
             # add any additional component nodes to target
             for person in new_twig:
-                if person not in target_twig and not the_graph.nodes[person]["person"].merged:
+                if person not in target_twig:
                     target_twig.append(person)
 
             # we're done, no need to look for further matches
+            target_twig = [person for person in target_twig if not the_graph.nodes[person]["person"].merged]
+            processed_twigs[target_key] = target_twig
             break
 
-        add_processed_twig(new_twig, new_twig_surnames, processed_twigs, surname_index)
+        if not merge_successful:
+            add_processed_twig(new_twig, new_twig_surnames, processed_twigs, surname_index)
 
-        with open('dum2.json', 'w') as json_file:
-            json.dump(the_graph_model.json(), json_file, indent=2)
+    with open('dum2.json', 'w') as json_file:
+        json.dump(the_graph_model.json(), json_file, indent=2)
 
 
 if __name__ == "__main__":
