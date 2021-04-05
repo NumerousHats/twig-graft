@@ -393,8 +393,10 @@ class Person(Conclusion):
             output.append("({})".format(", ".join(married_names)))
 
         if facts["Birth"]:
-            dates = [str(x) for x in facts["Birth"][0].date]
-            output.append("B {}".format(" or ".join(dates)))
+            for birth in facts["Birth"]:
+                # TODO this is, of course, silly, but is a temporary kludge to check Person merging
+                dates = [str(x) for x in birth.date]
+                output.append("B {}".format(" or ".join(dates)))
 
         if facts["Death"]:
             dates = [str(x) for x in facts["Death"][0].date]
