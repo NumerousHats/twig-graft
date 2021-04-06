@@ -708,7 +708,10 @@ class BirthRecord(Record):
         self.illegitimate = None
 
         self.logger = logging.getLogger(__name__)
-        self.maximum_age = datetime.timedelta(days=365 * 110)
+
+        self.min_age = 13
+        self.max_f_age = 60
+        self.max_m_age = 70
 
     def __repr__(self):
         return json.dumps(self.json(), indent=2)
@@ -819,6 +822,9 @@ class BirthRecord(Record):
             self.father = Person(gender="m",
                                  names=Name(name_type="birth", name_parts=parse_name(surname, father_col)[0],
                                             thesaurus=self.thesaurus),
+                                 facts=Fact("Birth",
+                                            date=self.birth_date.subtract_years(self.min_age, self.max_m_age),
+                                            confidence="calculated", sources=self.source),
                                  sources=self.source)
             self.father_rel = Relationship(self.father.identifier, self.newborn.identifier,
                                            "parent-child", sources=self.source)
@@ -828,7 +834,11 @@ class BirthRecord(Record):
                 pass
 
         if mother_col:
-            self.mother = Person(gender="f", sources=self.source)
+            self.mother = Person(gender="f",
+                                 facts=Fact("Birth",
+                                            date=self.birth_date.subtract_years(self.min_age, self.max_f_age),
+                                            confidence="calculated", sources=self.source),
+                                 sources=self.source)
             if not self.illegitimate:
                 self.add_annotated_name(self.mother, Name(name_type="married",
                                                           name_parts=parse_name(surname, mother_col)[0],
@@ -844,7 +854,12 @@ class BirthRecord(Record):
 
     def set_father_ancestors(self, surname, ff, fm, fmf_given, fmf_surname, fmm_given, fmm_surname):
         if ff and ff != "[illegitimate]":
-            self.ff = Person(gender="m", sources=self.source)
+            self.ff = Person(gender="m",
+                             facts=Fact("Birth",
+                                        date=self.father.birth_date(flatten=True).subtract_years(self.min_age,
+                                                                                                 self.max_m_age),
+                                        confidence="calculated", sources=self.source),
+                             sources=self.source)
             self.add_annotated_name(self.ff, Name(name_type="birth", name_parts=parse_name(surname, ff)[0],
                                                   thesaurus=self.thesaurus),
                                     ["f_father"])
@@ -854,7 +869,12 @@ class BirthRecord(Record):
             self.father.add_fact(Fact(fact_type="IllegitimateBirth", sources=self.source))
 
         if fm:
-            self.fm = Person(gender="f", sources=self.source)
+            self.fm = Person(gender="f",
+                             facts=Fact("Birth",
+                                        date=self.father.birth_date(flatten=True).subtract_years(self.min_age,
+                                                                                                 self.max_f_age),
+                                        confidence="calculated", sources=self.source),
+                             sources=self.source)
             if ff and ff != "[illegitimate]":
                 self.add_annotated_name(self.fm,
                                         Name(name_type="married", name_parts=parse_name(surname, fm)[0],
@@ -872,7 +892,12 @@ class BirthRecord(Record):
             self.ff_fm_rel = Relationship(self.fm.identifier, self.ff.identifier, "spouse", sources=self.source)
 
         if fmf_given and fmf_given != "[illegitimate]":
-            self.fmf = Person(gender="m", sources=self.source)
+            self.fmf = Person(gender="m",
+                              facts=Fact("Birth",
+                                         date=self.fm.birth_date(flatten=True).subtract_years(self.min_age,
+                                                                                              self.max_m_age),
+                                         confidence="calculated", sources=self.source),
+                              sources=self.source)
             self.add_annotated_name(self.fmf, Name(name_type="birth", name_parts=parse_name(fmf_surname, fmf_given)[0],
                                                    thesaurus=self.thesaurus),
                                     ["f_m_father_given", "f_m_father_surname"])
@@ -883,7 +908,12 @@ class BirthRecord(Record):
             self.fm.add_fact(Fact(fact_type="IllegitimateBirth", sources=self.source))
 
         if fmm_surname:
-            self.fmm = Person(gender="f", sources=self.source)
+            self.fmm = Person(gender="f",
+                              facts=Fact("Birth",
+                                         date=self.fm.birth_date(flatten=True).subtract_years(self.min_age,
+                                                                                              self.max_f_age),
+                                         confidence="calculated", sources=self.source),
+                              sources=self.source)
             self.add_annotated_name(self.fmm, Name(name_type="birth", name_parts=parse_name(fmm_surname, fmm_given)[0],
                                                    thesaurus=self.thesaurus),
                                     ["f_m_mother_given", "f_m_mother_surname"])
@@ -899,7 +929,12 @@ class BirthRecord(Record):
                                                       thesaurus=self.thesaurus),
                                     ["mother", "m_father_surname"])
             if mf_given:
-                self.mf = Person(gender="m", sources=self.source)
+                self.mf = Person(gender="m",
+                                 facts=Fact("Birth",
+                                            date=self.mother.birth_date(flatten=True).subtract_years(self.min_age,
+                                                                                                     self.max_m_age),
+                                            confidence="calculated", sources=self.source),
+                                 sources=self.source)
                 self.add_annotated_name(self.mf, Name(name_type="birth", name_parts=parse_name(mf_surname, mf_given)[0],
                                                       thesaurus=self.thesaurus),
                                         ["m_father_given", "m_father_surname"])
@@ -907,7 +942,12 @@ class BirthRecord(Record):
                     self.m_mf_rel = Relationship(self.mf.identifier, self.mother.identifier, "parent-child",
                                                  sources=self.source)
         if mm:
-            self.mm = Person(gender="f", sources=self.source)
+            self.mm = Person(gender="f",
+                             facts=Fact("Birth",
+                                        date=self.mother.birth_date(flatten=True).subtract_years(self.min_age,
+                                                                                                 self.max_f_age),
+                                        confidence="calculated", sources=self.source),
+                             sources=self.source)
             if mf_surname:
                 self.add_annotated_name(self.mm,
                                         Name(name_type="married", name_parts=parse_name(mf_surname, mm)[0],
@@ -925,7 +965,12 @@ class BirthRecord(Record):
             self.mm_mf_rel = Relationship(self.mm.identifier, self.mf.identifier, "spouse", sources=self.source)
 
         if mmf_given:
-            self.mmf = Person(gender="m", sources=self.source)
+            self.mmf = Person(gender="m",
+                              facts=Fact("Birth",
+                                         date=self.mm.birth_date(flatten=True).subtract_years(self.min_age,
+                                                                                              self.max_f_age),
+                                         confidence="calculated", sources=self.source),
+                              sources=self.source)
             if mmf_surname:
                 name = {"given": mmf_given, "surname": mmf_surname}
             else:

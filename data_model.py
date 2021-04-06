@@ -482,12 +482,15 @@ class Person(Conclusion):
     def has_fact(self, fact):
         return fact in self.get_facts().keys()
 
-    def birth_date(self):
+    def birth_date(self, flatten=False):
         facts = self.get_facts()
         if "Birth" in facts.keys():
             if len(facts["Birth"]) != 1:
                 raise ValueError("Person can have only one birth Fact.")
-            return facts["Birth"][0].date
+            dates = facts["Birth"][0].date
+            if flatten and len(dates) == 1:
+                dates = dates[0]
+            return dates
         else:
             return None
 
@@ -844,6 +847,12 @@ class Date:
             self.notes = [note]
         else:
             self.notes.append(note)
+
+    def subtract_years(self, minimum, maximum):
+        min_delta = datetime.timedelta(days=minimum*365)
+        max_delta = datetime.timedelta(days=maximum*365)
+        new_date = [Date(self.start - max_delta, self.end - min_delta)]
+        return new_date
 
 
 class Duration:

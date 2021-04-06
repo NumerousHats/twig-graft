@@ -44,9 +44,8 @@ class PeopleGraph:
         return json.dumps(self.json())
 
     def append(self, record: Record):
-        self.people.update({p.identifier: p for p in record.people()})
+        self.graph.add_nodes_from([(p.identifier, {"person": p}) for p in record.people()])
         relations = [(rel.from_id, rel.to_id, {"relation": rel}) for rel in record.relations()]
-        self.graph.add_nodes_from(self.people.keys())
         self.graph.add_edges_from(relations)
 
     def summarize(self):
