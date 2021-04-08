@@ -34,6 +34,7 @@ import uuid
 import logging
 import json
 from collections import defaultdict
+from copy import deepcopy
 
 
 class Statement:
@@ -417,7 +418,7 @@ class Person(Conclusion):
         if facts is None:
             return
 
-        if type(facts) is not list:
+        if type(facts) is not list and type(facts) is Fact:
             facts = [facts]
 
         for fact in facts:
@@ -485,7 +486,7 @@ class Person(Conclusion):
     def birth_date(self, flatten=False):
         facts = self.get_facts()
         if "Birth" in facts.keys():
-            if len(facts["Birth"]) != 1:
+            if len(facts["Birth"]) > 1:
                 raise ValueError("Person can have only one birth Fact.")
             dates = facts["Birth"][0].date
             if flatten and len(dates) == 1:
@@ -556,9 +557,33 @@ class Person(Conclusion):
         elif other.gender:
             new_person.gender = other.gender
 
-        # TODO make this more intelligent
-        new_person.add_fact(self.facts)
-        new_person.add_fact(other.facts)
+        self_facts = self.get_facts()
+        other_facts = other.get_facts()
+        if self_facts["Birth"] and other_facts["Birth"]:
+            self_date = self_facts["Birth"][0].date
+            other_date = other_facts["Birth"][0].date
+            merged_dates = merge(self_date, other_date)
+            merged_sources = deepcopy(self_facts["Birth"][0].sources)
+            merged_sources.extend(other_facts["Birth"][0].sources)
+            merged_birth = Fact("Birth", date=merged_dates, sources=merged_sources)
+            new_person.add_fact(merged_birth)
+            del self_facts["Birth"]
+            del other_facts["Birth"]
+
+        if self_facts["Death"] and other_facts["Death"]:
+            merged_dates = merge(self_facts["Death"][0].date, other_facts["Death"][0].date)
+            merged_sources = deepcopy(self_facts["Death"][0].sources)
+            merged_sources.extend(other_facts["Death"][0].sources)
+            merged_death = Fact("Death", date=merged_dates, sources=merged_sources)
+            new_person.add_fact(merged_death)
+            del self_facts["Death"]
+            del other_facts["Death"]
+
+        # TODO just dump in the rest of them for now...
+        for fact in self_facts.values():
+            new_person.add_fact(fact)
+        for fact in other_facts.values():
+            new_person.add_fact(fact)
 
         if self.notes and other.notes:
             new_person.notes = self.notes + other.notes
@@ -842,6 +867,9 @@ class Date:
         else:
             return False
 
+    def is_before(self, other):
+        return self.end < other.start
+
     def add_note(self, note):
         if self.notes is None:
             self.notes = [note]
@@ -853,6 +881,11 @@ class Date:
         max_delta = datetime.timedelta(days=maximum*365)
         new_date = [Date(self.start - max_delta, self.end - min_delta)]
         return new_date
+
+    def intersect(self, other):
+        start = max(self.start, other.start)
+        end = min(self.end, other.end)
+        return Date(start, end)
 
 
 class Duration:
@@ -1024,3 +1057,21 @@ def subtract(date, duration):
         new_date.append(Date(date.start - start_delta, date.end - end_delta, accuracy=accuracy))
 
     return new_date
+
+
+def merge(datelist1, datelist2):
+    """Find maximum common overlap between two (potentially disjoint) lists of dates.
+
+    Args:
+        datelist1 (list of Date): The first Date list.
+        datelist2 (list of Date): The first Date list.
+
+    Returns:
+        The merged list of Dates.
+    """
+    out = []
+    for date1 in datelist1:
+        for date2 in datelist2:
+            out.append(date1.intersect(date2))
+
+    return out

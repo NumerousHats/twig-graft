@@ -1,3 +1,4 @@
+import math
 from data_model import *
 
 
@@ -144,8 +145,23 @@ def datelist_overlap(datelist1, datelist2):
     return False
 
 
-def birth_death_match(person1: Person, person2: Person):
+def earliest(datelist):
+    out = Date("2020-01-01")
+    for date in datelist:
+        if date.start < out.start:
+            out = date
+    return out
 
+
+def latest(datelist):
+    out = Date("1492-01-01")
+    for date in datelist:
+        if date.end > out.end:
+            out = date
+    return out
+
+
+def birth_death_match(person1: Person, person2: Person):
     birth1 = person1.birth_date()
     birth2 = person2.birth_date()
     death1 = person1.death_date()
@@ -164,6 +180,20 @@ def birth_death_match(person1: Person, person2: Person):
     if death1 and death2:
         comparisons += 1
         if datelist_overlap(death1, death2):
+            matches += 1
+        else:
+            return -1, 0
+
+    if birth1 and death2:
+        comparisons += 1
+        if earliest(birth1).is_before(latest(death2)):
+            matches += 1
+        else:
+            return -1, 0
+
+    if birth2 and death1:
+        comparisons += 1
+        if earliest(birth2).is_before(latest(death1)):
             matches += 1
         else:
             return -1, 0
