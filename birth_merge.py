@@ -59,7 +59,7 @@ def main():
     logging.getLogger('comparison').setLevel(logging.WARNING)
     logger = logging.getLogger(__name__)
 
-    spew = False
+    spew = True
 
     with open('dum.json') as f:
         input_json = json.load(f)
@@ -125,7 +125,7 @@ def main():
                 # this currently only happens in the weird case where there are two children of the same name of the
                 # same parents.
                 # TODO ignore it for now
-                continue
+                raise
 
             if not mcs.maximal_common_subgraphs:
                 logger.info("no common subgraph")
