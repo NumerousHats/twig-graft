@@ -227,7 +227,7 @@ def location_match(locations1, locations2):
     if locations1 and locations2:
         for loc1 in locations1:
             for loc2 in locations2:
-                if location_match(loc1, loc2):
+                if compare_location(loc1, loc2):
                     matches += 1
 
     return matches
