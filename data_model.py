@@ -563,8 +563,10 @@ class Person(Conclusion):
             self_date = self_facts["Birth"][0].date
             other_date = other_facts["Birth"][0].date
             merged_dates = merge(self_date, other_date)
-            merged_sources = deepcopy(self_facts["Birth"][0].sources)
-            merged_sources.extend(other_facts["Birth"][0].sources)
+            merged_sources = deepcopy(self_facts["Birth"][0].sources) or []
+            other_sources = other_facts["Birth"][0].sources
+            if other_sources:
+                merged_sources.extend(other_sources)
             merged_birth = Fact("Birth", date=merged_dates, sources=merged_sources)
             new_person.add_fact(merged_birth)
             del self_facts["Birth"]
@@ -572,8 +574,10 @@ class Person(Conclusion):
 
         if self_facts["Death"] and other_facts["Death"]:
             merged_dates = merge(self_facts["Death"][0].date, other_facts["Death"][0].date)
-            merged_sources = deepcopy(self_facts["Death"][0].sources)
-            merged_sources.extend(other_facts["Death"][0].sources)
+            merged_sources = deepcopy(self_facts["Death"][0].sources) or []
+            other_sources = other_facts["Death"][0].sources
+            if other_sources:
+                merged_sources.extend(other_sources)
             merged_death = Fact("Death", date=merged_dates, sources=merged_sources)
             new_person.add_fact(merged_death)
             del self_facts["Death"]
