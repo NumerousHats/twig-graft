@@ -6,6 +6,8 @@ small family-tree fragments ("twigs") from individual records, finds
 overlapping twigs via McGregor maximal common subgraph matching, and
 merges ("grafts") them into larger connected trees.
 
+**Note that this README file and the files in `docs/` were generated using AI. They have been partially edited, reviewed, and corrected by a human, but there still may be mistakes.**
+
 ## Quick Start
 
 ```bash
