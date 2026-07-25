@@ -1,0 +1,14 @@
+[project]
+name = "twig-grafter"
+version = "0.1.0"
+description = "Construct twigs from Greek Catholic birth and death records, find overlaps via graph matching, and graft them into larger family trees."
+requires-python = ">=3.8"
+dependencies = [
+    "networkx~=2.4",
+    "click~=7.1.2",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+]
