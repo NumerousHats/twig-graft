@@ -76,21 +76,20 @@ library.  Each layer depends only on layers below it.
 ## Core Concepts
 
 ### Twig
-A "twig" is a single family-tree fragment: a set of `Person` objects
-connected by `Relationship` edges, typically covering 2–4 generations
-around one birth or death record.  Each birth/death record imported from
+A "twig" is a family-tree fragment derived from a single metrical record. It is a set of `Person` objects
+connected by `Relationship` edges, typically covering 2–4 generations.  Each birth/death record imported from
 CSV becomes one twig.
 
 ### Graft
 Grafting is the process of merging two twigs that share one or more
 common individuals.  McGregor's algorithm finds the maximum common
 subgraph between two twig graphs; if the match is large enough (default
-minimum: 5 nodes), the twigs are merged by combining Person objects and
-Rerouting edges.
+minimum: 5 nodes), the twigs are merged by merging `Person` objects and
+rerouting edges.
 
 ### Merge
 `Person.merge()` creates a new `Person` that combines the names, facts,
-and sources of two input Persons.  The originals are marked `merged =
+and sources of two input `Person`s under the assumption that the two `Person` objects correspond to the same person-in-real-life.  The originals are marked `merged =
 True` and are no longer processed.  Two `"merged-into"` Relationship
 edges link the originals to the new Person.
 

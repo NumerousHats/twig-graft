@@ -6,6 +6,8 @@ The core matching algorithm.  Given two directed graphs G1 and G2, it
 finds the largest node-induced subgraph H1 of G1 and H2 of G2 such that
 H1 and H2 are isomorphic.
 
+The current implementation does not use McGregor's "priority subset" method for choosing the order in which to attempt node pairing.
+
 Ref: McGregor, James J. "Backtrack search algorithms and the maximal
 common subgraph problem" (1982).  Software -- Practice and Experience,
 vol. 12, 23-34.

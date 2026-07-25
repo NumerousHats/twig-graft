@@ -9,102 +9,101 @@ the thesaurus files it reads.
 ## 1. Birth Record CSV
 
 One row per birth/baptism entry.  The header row lists all column names.
-Produced by hand-transcription from scanned parish registers of the Greek
-Catholic church in the Sanok region of Galicia.
+Produced by hand-transcription from scanned Greek Catholic parish registers in Galicia.
 
 ### Source metadata columns
 
-| Column | Description |
-|---|---|
-| `repository` | Archive name (e.g. `Archiwum państwowe w Rzeszowie oddział w Sanoku`) |
-| `book` | Volume identifier (e.g. `60_437_0_3`) |
-| `page` | Page number in the register |
-| `image` | Filename of the scanned image |
-| `entry` | Entry number on the page (may be `[13]` for interpolated entries) |
-| `year` | Year of the event |
+| Column       | Description                                                                                                                                                                                                                                                                                |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `repository` | Archive name (e.g. `Archiwum państwowe w Rzeszowie oddział w Sanoku`)                                                                                                                                                                                                                      |
+| `book`       | Volume identifier (e.g. `60_437_0_3`)                                                                                                                                                                                                                                                      |
+| `page`       | Page number in the register                                                                                                                                                                                                                                                                |
+| `image`      | Filename of the scanned image                                                                                                                                                                                                                                                              |
+| `entry`      | Entry number on the page. If the entry is unnumbered in the original, then the infered number is in square brackets (e.g. `[13]`). For interpolated entries or ones without a clear number, use an appropriate discriptor enclosed in square brackets (e.g. `[insert]` or `unnumbered 1`). |
+| `year`       | Year of the event                                                                                                                                                                                                                                                                          |
 
 ### Event date columns
 
-| Column | Description |
-|---|---|
-| `birth_date` | Date of birth as `MM-DD` or `YYYY-MM-DD`.  May end with `[?]` when the day is uncertain. |
-| `baptism_date` | Date of baptism, same format. |
-| `death_date` | Date of death (if the infant died before baptism). |
+| Column         | Description                                                                                                                                             |
+|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `birth_date`   | Date of birth as `MM-DD` or `YYYY-MM-DD`.  May end with `?` when the day is uncertain. Comments enclosed in `<>` can be added (e.g. `<error for 6-15?>` |
+| `baptism_date` | Date of baptism, same format. Leave blank if unbaptized (e.g. a stillbirth).                                                                            |
+| `death_date`   | Date of death. This is the penciled-in death date that appears in some records.                                                                         |
 
 ### House/location columns
 
-| Column | Description |
-|---|---|
-| `house_number` | Primary house number in the village |
-| `alt_house_number` | Alternate house number (old numbering system) |
-| `house_location` | Village name if the house is in a different village |
+| Column             | Description                                         |
+|--------------------|-----------------------------------------------------|
+| `house_number`     | Primary house number in the village                 |
+| `alt_house_number` | Alternate house number (old numbering system)       |
+| `house_location`   | Village name if the house is in a different village |
 
 ### Newborn columns
 
-| Column | Description |
-|---|---|
-| `given_name` | Given name(s).  Parenthetical alternate: `"Maria (Marianna)"`. |
-| `surname` | Surname.  Parenthetical house name: `"Bobak (Kuzior)"`. |
-| `gender` | `m` or `f` |
-| `illegitimate` | `y` if the child was illegitimate |
-| `primogenitus` | Non-empty if the child was the first-born |
-| `midwife` | Midwife name (may be comma-delimited) |
+| Column         | Description                                                                    |
+|----------------|--------------------------------------------------------------------------------|
+| `given_name`   | Given name(s).  Parenthetical alternate: `"Maria (Marianna)"`.                 |
+| `surname`      | Surname.  Parenthetical house name: `"Bobak (Kuzior)"`.                        |
+| `gender`       | `m` or `f` (we are assuming 19th-century concept of binary gender)             |
+| `illegitimate` | `y` if the child was illegitimate                                              |
+| `primogenitus` | `y` if the child was the first-born as indicated in the record, blank otherwise |
+| `midwife`      | Midwife name (Surname, Given name)                                             |
 
 ### Father's family columns
 
-| Column | Description |
-|---|---|
-| `father` | Father's given name |
-| `f_father` | Father's father's given name |
-| `f_mother` | Father's mother's given name |
-| `f_m_father_given` | Father's mother's father's given name |
-| `f_m_father_surname` | Father's mother's father's surname |
-| `f_m_mother_given` | Father's mother's mother's given name |
-| `f_m_mother_surname` | Father's mother's mother's surname |
-| `father_deceased` | Non-empty if the father was already deceased at time of birth |
+| Column               | Description                                             |
+|----------------------|---------------------------------------------------------|
+| `father`             | Father's given name                                     |
+| `f_father`           | Father's father's given name                            |
+| `f_mother`           | Father's mother's given name                            |
+| `f_m_father_given`   | Father's mother's father's given name                   |
+| `f_m_father_surname` | Father's mother's father's surname                      |
+| `f_m_mother_given`   | Father's mother's mother's given name                   |
+| `f_m_mother_surname` | Father's mother's mother's surname                      |
+| `father_deceased`    | `y` if the father was already deceased at time of birth |
 
 ### Mother's family columns
 
-| Column | Description |
-|---|---|
-| `mother` | Mother's given name (maiden name is derived from child's surname) |
-| `m_father_given` | Mother's father's given name |
-| `m_father_surname` | Mother's father's surname (i.e. the mother's maiden surname) |
-| `m_mother` | Mother's mother's given name |
-| `m_m_father_given` | Mother's mother's father's given name |
-| `m_m_father_surname` | Mother's mother's father's surname |
-| `m_m_mother_given` | Mother's mother's mother's given name |
-| `m_m_mother_surname` | Mother's mother's mother's surname |
-| `m_m_m_father_given` | Mother's mother's mother's father's given name |
-| `mothers_spouse` | Mother's spouse (if different from father) |
-| `mother_previous_spouse` | Mother's previous spouse |
+| Column                   | Description                                                  |
+|--------------------------|--------------------------------------------------------------|
+| `mother`                 | Mother's given name                                          |
+| `m_father_given`         | Mother's father's given name                                 |
+| `m_father_surname`       | Mother's father's surname (i.e. the mother's maiden surname) |
+| `m_mother`               | Mother's mother's given name                                 |
+| `m_m_father_given`       | Mother's mother's father's given name                        |
+| `m_m_father_surname`     | Mother's mother's father's surname                           |
+| `m_m_mother_given`       | Mother's mother's mother's given name                        |
+| `m_m_mother_surname`     | Mother's mother's mother's surname                           |
+| `m_m_m_father_given`     | Mother's mother's mother's father's given name               |
+| `mothers_spouse`         | Mother's spouse (if different from father)                   |
+| `mother_previous_spouse` | Mother's previous spouse                                     |
 
 ### Godparent columns
 
-| Column | Description |
-|---|---|
-| `godfather_given` | Godfather's given name |
-| `godfather_surname` | Godfather's surname |
-| `godmother_given` | Godmother's given name |
-| `godmother_surname` | Godmother's surname |
-| `godmothers_spouse` | Godmother's spouse |
-| `godmothers_father` | Godmother's father |
+| Column                  | Description                |
+|-------------------------|----------------------------|
+| `godfather_given`       | Godfather's given name     |
+| `godfather_surname`     | Godfather's surname        |
+| `godmother_given`       | Godmother's given name     |
+| `godmother_surname`     | Godmother's surname        |
+| `godmothers_spouse`     | Godmother's spouse         |
+| `godmothers_father`     | Godmother's father         |
 | `additional_godfathers` | Additional godfather names |
 | `additional_godmothers` | Additional godmother names |
 
 ### Other columns
 
-| Column | Description |
-|---|---|
-| `noncatholic` | Non-empty if the family was non-Catholic |
-| `parents_marriage` | Notes about the parents' marriage |
-| `notes` | Free-text notes |
+| Column             | Description                                  |
+|--------------------|----------------------------------------------|
+| `noncatholic`      | `y` if the family was non-Catholic           |
+| `parents_marriage` | Date of (notes about?) the parents' marriage |
+| `notes`            | Free-text notes                              |
 
 ### Inline annotation conventions
 
 - **Comments**: Text inside `<angle brackets>` is treated as a transcription note and extracted by `parse_notes()`.
-- **Low confidence**: A trailing `?` marks uncertain readings; it is stripped from the value and recorded as `"low"` confidence.
-- **Bracketed text**: `[text]` in a name field is treated as the primary reading (brackets are stripped).
+- **Low confidence**: A trailing `?` marks uncertain readings; it is stripped from the value and recorded as `low` confidence.
+- **Bracketed text**: `[text]` in a name field is treated as the primary reading of uncertain or omitted text (brackets are stripped on import).
 
 ---
 
@@ -122,60 +121,60 @@ Same as birth CSV: `house_number`, `alt_house_number`, `house_location`.
 
 ### Decedent columns
 
-| Column | Description |
-|---|---|
-| `surname` | Decedent's surname |
-| `given_name` | Decedent's given name(s) |
-| `gender` | `m` or `f` |
-| `uxoratus` | Non-empty if the decedent was married (husband) |
-| `coelebs` | Non-empty if the decedent was unmarried |
+| Column        | Description                              |
+|---------------|------------------------------------------|
+| `surname`     | Decedent's surname                       |
+| `given_name`  | Decedent's given name(s)                 |
+| `gender`      | `m` or `f`                               |
+| `uxoratus`    | `y` if the decedent was married          |
+| `coelebs`     | `y` if the decedent was unmarried        |
 | `maiden_name` | Maiden name of a married female decedent |
 
 ### Family columns
 
-| Column | Description |
-|---|---|
-| `father` | Father's given name |
-| `father_deceased` | Non-empty if father was deceased |
-| `mother` | Mother's given name |
-| `mother_deceased` | Non-empty if mother was deceased |
-| `mothers_father` | Mother's father (given name or comma-delimited) |
-| `mothers_mother` | Mother's mother's given name |
-| `mothers_mothers_father` | Mother's mother's father |
-| `mothers_spouse` | Mother's spouse (if different from father) |
-| `sibling` | Sibling name(s) |
+| Column                   | Description                                     |
+|--------------------------|-------------------------------------------------|
+| `father`                 | Father's given name                             |
+| `father_deceased`        | `y` if father was deceased                      |
+| `mother`                 | Mother's given name                             |
+| `mother_deceased`        | `y` if mother was deceased                      |
+| `mothers_father`         | Mother's father (given name or comma-delimited) |
+| `mothers_mother`         | Mother's mother's given name                    |
+| `mothers_mothers_father` | Mother's mother's father                        |
+| `mothers_spouse`         | Mother's spouse (if different from father)      |
+| `sibling`                | Sibling name(s)                                 |
 
 ### Spouse columns
 
-| Column | Description |
-|---|---|
-| `spouse` | Spouse's given name |
-| `spouse_surname` | Spouse's surname |
-| `widow(er)` | Non-empty if the decedent was a widow/widower |
-| `years_married` | Duration of marriage |
-| `second_marriage` | Non-empty if there was a second marriage |
-| `spouse_2` | Second spouse's given name |
-| `spouse_2_surname` | Second spouse's surname |
-| `widow(er)_2` | Non-empty if widowed from second spouse |
-| `years_married_2` | Duration of second marriage |
+| Column             | Description                             |
+|--------------------|-----------------------------------------|
+| `spouse`           | Spouse's given name                     |
+| `spouse_surname`   | Spouse's surname                        |
+| `widow(er)`        | `y` if the decedent was a widow/widower |
+| `years_married`    | Duration of marriage                    |
+| `second_marriage`  | `y` if there was a second marriage      |
+| `spouse_2`         | Second spouse's given name              |
+| `spouse_2_surname` | Second spouse's surname                 |
+| `widow(er)_2`      | `y` if widowed from second spouse       |
+| `years_married_2`  | Duration of second marriage             |
 
 ### Age columns
 
-| Column | Description |
-|---|---|
-| `age_y` | Age in years |
-| `age_m` | Age in months |
-| `age_w` | Age in weeks |
-| `age_d` | Age in days |
-| `year_day` | Non-empty if the age was given in year-and-day format (ambiguous) |
-| `birth_year` | Year of birth (if recorded) |
+| Column       | Description                                     |
+|--------------|-------------------------------------------------|
+| `age_y`      | Age in years                                    |
+| `age_m`      | Age in months                                   |
+| `age_w`      | Age in weeks                                    |
+| `age_d`      | Age in days                                     |
+| `year_day`   | `y` if there is a year/day ambiguity in the age |
+| `birth_year` | Year of birth (if recorded)                     |
 
 ### Other columns
 
-| Column | Description |
-|---|---|
+| Column        | Description               |
+|---------------|---------------------------|
 | `noncatholic` | Non-empty if non-Catholic |
-| `notes` | Free-text notes |
+| `notes`       | Free-text notes           |
 
 ---
 
@@ -211,7 +210,7 @@ Produced by `birth_import.py` and `birth_merge.py`.  Top-level keys:
   "name_parts": {
     "surname": "Bobak",
     "given": "Maria",
-    "house_name": "Kuzior"       // optional
+    "house_name": "Kuzio"       // optional
   },
   "standard_surname": "Bobak",   // looked up in thesaurus
   "standard_given": "Maria",     // looked up in thesaurus
