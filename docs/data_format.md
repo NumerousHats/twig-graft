@@ -271,7 +271,7 @@ Produced by `birth_import.py` and `birth_merge.py`.  Top-level keys:
 {
   "person1_identifier": "UUID",
   "person2_identifier": "UUID",
-  "type": "parent-child" | "spouse",
+  "type": "parent-child" | "spouse" | "merged_into",
   "sources": [ <source>, ... ],
   "confidence": "normal" | "low" | "calculated"
 }
