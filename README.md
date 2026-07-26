@@ -77,8 +77,8 @@ uv run python twig2gml.py dum.json > output.gml
 Managed with [uv](https://github.com/astral-sh/uv).  See `pyproject.toml`
 for the full specification.
 
-- Python >= 3.8
-- `networkx~=2.4`
+- Python >= 3.10
+- `networkx>=3.4,<3.5`
 - `click~=7.1.2`
 - `pytest` (dev)
 
