@@ -70,7 +70,7 @@ class NodeMatching:
             because the analogous edge in graph2 does not exist.
         nodes_removed (int): The number of nodes in graph1 that have intentionally been left unassigned in the
             current common subgraph. This will only occur if null_matches_allowed is True.
-        maximal_edges_removed (int): The number of edges that needed to be removed in the in the largest common
+        maximal_edges_removed (int): The number of edges that needed to be removed in the largest common
             subgraph found up to this point. If edges_removed > maximal_edges_removed, then the recursion can be
             terminated early. If a larger common subgraph is found, then maximal_edges_removed will decrease.
         maximal_nodes_removed (int): The number of nodes in graph1 not assigned to any node in graph2 in the
