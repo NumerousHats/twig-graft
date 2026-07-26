@@ -3,7 +3,8 @@ import networkx as nx
 from data_model import *
 from graph_model import PeopleGraph
 import comparison
-from birth_merge import node_match, edge_match, sanity_check
+from birth_merge import node_match, edge_match, sanity_check, generate_proposals, detect_conflicts, \
+    apply_merge, MergeProposal
 
 
 def make_person_with_names(given, surname, gender="m", birth_date=None, std_given=None, std_surname=None):
@@ -191,3 +192,104 @@ class TestSanityCheck:
         g.add_node("orphan")  # no "person" attribute
         with pytest.raises(KeyError):
             sanity_check(g)
+
+
+# --- generate_proposals / detect_conflicts / apply_merge ---
+
+def build_two_matching_twigs():
+    """Build a PeopleGraph with two disjoint, structurally-identical 3-node twigs (a parent-child
+    chain), so that generate_proposals should find exactly one merge proposal between them."""
+    graph_json = {
+        "persons": [
+            make_person_json("g1", "Adam", "Smith", "m"),
+            make_person_json("g2", "Eve", "Smith", "f"),
+            make_person_json("g3", "Cain", "Smith", "m"),
+            make_person_json("t1", "Adam", "Smith", "m"),
+            make_person_json("t2", "Eve", "Smith", "f"),
+            make_person_json("t3", "Cain", "Smith", "m"),
+        ],
+        "relations": [
+            make_relation_json("r1", "g1", "g3", "parent-child"),
+            make_relation_json("r2", "g2", "g3", "parent-child"),
+            make_relation_json("r3", "t1", "t3", "parent-child"),
+            make_relation_json("r4", "t2", "t3", "parent-child"),
+        ]
+    }
+    return PeopleGraph(graph_json=graph_json)
+
+
+class TestGenerateProposals:
+    def test_finds_one_proposal(self):
+        pg = build_two_matching_twigs()
+        proposals = generate_proposals(pg.graph, minimum_match_size=3)
+
+        assert len(proposals) == 1
+        assert proposals[0].match_size == 3
+
+    def test_no_proposal_when_threshold_too_high(self):
+        pg = build_two_matching_twigs()
+        proposals = generate_proposals(pg.graph, minimum_match_size=4)
+
+        assert proposals == []
+
+    def test_proposals_do_not_modify_graph(self):
+        pg = build_two_matching_twigs()
+        node_count_before = pg.graph.number_of_nodes()
+        edge_count_before = pg.graph.number_of_edges()
+
+        generate_proposals(pg.graph, minimum_match_size=3)
+
+        assert pg.graph.number_of_nodes() == node_count_before
+        assert pg.graph.number_of_edges() == edge_count_before
+
+
+class TestApplyMerge:
+    def test_apply_merge_succeeds(self):
+        pg = build_two_matching_twigs()
+        proposals = generate_proposals(pg.graph, minimum_match_size=3)
+        proposal = proposals[0]
+
+        success, target_twig = apply_merge(pg.graph, proposal.new_twig, proposal.target_twig,
+                                           proposal.node_mapping)
+
+        assert success is True
+        # all 6 original persons should now be merged
+        original_nodes = set(proposal.new_twig) | set(proposal.target_twig)
+        for node in original_nodes:
+            assert pg.graph.nodes[node]["person"].merged is True
+        # 3 new merged nodes should be present, none of which are themselves merged
+        new_nodes = [n for n in target_twig if n not in original_nodes]
+        assert len(new_nodes) == 3
+        for node in new_nodes:
+            assert pg.graph.nodes[node]["person"].merged is False
+
+
+class TestDetectConflicts:
+    def test_conflicting_proposals_flagged(self):
+        p1 = MergeProposal(target_twig_id="a", new_twig=["n1"], target_twig=["n2"],
+                           node_mapping={"n1": "n2"}, match_size=1)
+        p2 = MergeProposal(target_twig_id="b", new_twig=["n3"], target_twig=["n2"],
+                           node_mapping={"n3": "n2"}, match_size=1)
+        p3 = MergeProposal(target_twig_id="c", new_twig=["n4"], target_twig=["n5"],
+                           node_mapping={"n4": "n5"}, match_size=1)
+
+        detect_conflicts([p1, p2, p3])
+
+        assert p1.conflict is True
+        assert p2.conflict is True
+        assert p3.conflict is False
+        assert p1.conflict_reason is not None
+        assert p1.conflicts_with == [1]
+        assert p2.conflicts_with == [0]
+        assert p3.conflicts_with == []
+
+    def test_no_conflicts_when_disjoint(self):
+        p1 = MergeProposal(target_twig_id="a", new_twig=["n1"], target_twig=["n2"],
+                           node_mapping={"n1": "n2"}, match_size=1)
+        p2 = MergeProposal(target_twig_id="b", new_twig=["n3"], target_twig=["n4"],
+                           node_mapping={"n3": "n4"}, match_size=1)
+
+        detect_conflicts([p1, p2])
+
+        assert p1.conflict is False
+        assert p2.conflict is False

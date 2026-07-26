@@ -6,6 +6,8 @@ requires-python = ">=3.10"
 dependencies = [
     "networkx>=3.4,<3.5",
     "click~=7.1.2",
+    "streamlit>=1.30",
+    "pyvis>=0.3",
 ]
 
 [tool.uv]
