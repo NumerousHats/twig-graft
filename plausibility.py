@@ -61,14 +61,6 @@ class PlausibilityResult:
         return any(w.severity == "error" for w in self.warnings)
 
 
-def _midpoint_days(date):
-    """Return the number of days since the epoch for the midpoint of a Date's range.
-
-    Used only for relative comparisons between two dates, never as an absolute calendar quantity.
-    """
-    return (date.start.toordinal() + date.end.toordinal()) / 2.0
-
-
 def _is_unbounded(date):
     """Return True if a Date's range is unbounded on either side (datetime.date.min/.max), which
     indicates that no real date information is available."""
@@ -89,24 +81,34 @@ def _person_birth_date(person):
     return date
 
 
-def _age_gap_years(date1, date2):
-    """Return the gap in years between the midpoints of two Date ranges (date2 - date1)."""
-    return (_midpoint_days(date2) - _midpoint_days(date1)) / DAYS_PER_YEAR
+def _child_parent_gaps(parent_birth, child_birth):
+    """Return all four parent-child birth gaps in years (child - parent), one per endpoint
+    combination of the two Date ranges.  A negative gap means the parent was born after the child
+    (biologically impossible)."""
+    return [
+        (child_start_ord - parent_ord) / DAYS_PER_YEAR
+        for parent_ord in (parent_birth.start.toordinal(), parent_birth.end.toordinal())
+        for child_start_ord in (child_birth.start.toordinal(), child_birth.end.toordinal())
+    ]
 
 
-def _worst_case_parent_child_gap_years(parent_birth, child_birth):
-    """Return the smallest possible gap (in years) between a parent's and child's birth, given the
-    uncertainty in both date ranges: youngest possible parent (parent_birth.end) vs. oldest possible
-    child (child_birth.start)."""
-    return (child_birth.start.toordinal() - parent_birth.end.toordinal()) / DAYS_PER_YEAR
+def _spouse_gaps(birth1, birth2):
+    """Return all four absolute spouse birth gaps in years, one per endpoint combination of the two
+    Date ranges."""
+    return [
+        abs(ord1 - ord2) / DAYS_PER_YEAR
+        for ord1 in (birth1.start.toordinal(), birth1.end.toordinal())
+        for ord2 in (birth2.start.toordinal(), birth2.end.toordinal())
+    ]
 
 
 def _check_parent_child_ages(graph1, graph2, node_mapping):
     """Check that every parent-child relationship implied by the merge has a plausible age gap.
 
     For each mapped pair (child1, child2), find the parents of child1 in graph1 and the parents of
-    child2 in graph2. Whether or not those parents are themselves part of the mapping, their birth
-    dates (if known) must be consistent with a biologically plausible parent-child age gap.
+    child2 in graph2.  All four endpoint combinations of the parent's and child's birth-date ranges
+    are checked.  A warning or error is only emitted when the gap is implausible at *every*
+    endpoint combination -- if any combination yields a plausible gap the relationship is accepted.
     """
     warnings = []
 
@@ -124,27 +126,34 @@ def _check_parent_child_ages(graph1, graph2, node_mapping):
                 if parent_birth is None:
                     continue
 
-                gap = _worst_case_parent_child_gap_years(parent_birth, child_birth)
-                if gap < MIN_PARENT_CHILD_GAP_ERROR:
+                gaps = _child_parent_gaps(parent_birth, child_birth)
+                if all(g < MIN_PARENT_CHILD_GAP_ERROR for g in gaps):
                     warnings.append(PlausibilityWarning(
                         check="parent_age_gap",
                         severity="error",
                         message="Parent {} and child {} have an implausible age gap of only "
-                                 "{:.1f} years (minimum {} required)".format(
-                                     parent[:7], child[:7], gap, MIN_PARENT_CHILD_GAP_ERROR)))
-                elif gap < MIN_PARENT_CHILD_GAP_WARNING:
+                                 "{:.1f}--{:.1f} years (minimum {} required)".format(
+                                     parent[:7], child[:7], min(gaps), max(gaps),
+                                     MIN_PARENT_CHILD_GAP_ERROR)))
+                elif all(g < MIN_PARENT_CHILD_GAP_WARNING for g in gaps):
                     warnings.append(PlausibilityWarning(
                         check="parent_age_gap",
                         severity="warning",
-                        message="Parent {} and child {} have a low age gap of {:.1f} years "
+                        message="Parent {} and child {} have a low age gap of {:.1f}--{:.1f} years "
                                  "(recommended minimum {})".format(
-                                     parent[:7], child[:7], gap, MIN_PARENT_CHILD_GAP_WARNING)))
+                                     parent[:7], child[:7], min(gaps), max(gaps),
+                                     MIN_PARENT_CHILD_GAP_WARNING)))
 
     return warnings
 
 
 def _check_spouse_ages(graph1, graph2, node_mapping):
-    """Check that spouses implied by the merge have a plausible age gap."""
+    """Check that spouses implied by the merge have a plausible age gap.
+
+    All four endpoint combinations of the two birth-date ranges are checked.  A warning or error is
+    only emitted when *every* combination exceeds the threshold -- if any combination falls within
+    the plausible range, the relationship is accepted.
+    """
     warnings = []
     seen_pairs = set()
 
@@ -167,21 +176,23 @@ def _check_spouse_ages(graph1, graph2, node_mapping):
                 if spouse_birth is None:
                     continue
 
-                gap = abs(_age_gap_years(birth, spouse_birth))
-                if gap > MAX_SPOUSE_GAP_ERROR:
+                gaps = _spouse_gaps(birth, spouse_birth)
+                if all(g > MAX_SPOUSE_GAP_ERROR for g in gaps):
                     warnings.append(PlausibilityWarning(
                         check="spouse_age_gap",
                         severity="error",
-                        message="Spouses {} and {} have an implausible age gap of {:.1f} years "
-                                 "(maximum {} expected)".format(
-                                     node[:7], spouse[:7], gap, MAX_SPOUSE_GAP_ERROR)))
-                elif gap > MAX_SPOUSE_GAP_WARNING:
+                        message="Spouses {} and {} have an implausible age gap of {:.1f}--{:.1f} "
+                                 "years (maximum {} expected)".format(
+                                     node[:7], spouse[:7], min(gaps), max(gaps),
+                                     MAX_SPOUSE_GAP_ERROR)))
+                elif all(g > MAX_SPOUSE_GAP_WARNING for g in gaps):
                     warnings.append(PlausibilityWarning(
                         check="spouse_age_gap",
                         severity="warning",
-                        message="Spouses {} and {} have a large age gap of {:.1f} years "
+                        message="Spouses {} and {} have a large age gap of {:.1f}--{:.1f} years "
                                  "(recommended maximum {})".format(
-                                     node[:7], spouse[:7], gap, MAX_SPOUSE_GAP_WARNING)))
+                                     node[:7], spouse[:7], min(gaps), max(gaps),
+                                     MAX_SPOUSE_GAP_WARNING)))
 
     return warnings
 

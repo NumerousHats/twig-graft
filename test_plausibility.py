@@ -222,3 +222,143 @@ def test_score_clamping_does_not_go_negative():
 
     assert result.score == 0.0
     assert all(w.severity == "error" for w in result.warnings if w.check == "parent_age_gap")
+
+
+def make_person_wide(given="John", surname="Doe", gender="m", birth_start=None, birth_end=None, coelebs=False):
+    name = Name("birth", {"given": given, "surname": surname})
+    facts = []
+    if birth_start is not None and birth_end is not None:
+        facts.append(Fact("Birth", date=Date(birth_start, birth_end)))
+    if coelebs:
+        facts.append(Fact("Coelebs"))
+    return Person(names=[name], gender=gender, facts=facts or None)
+
+
+def test_parent_child_wide_range_some_endpoints_plausible():
+    """Parent birth range spans 1880-1900; child birth range spans 1920-1925.
+    The tightest gap (youngest parent vs. oldest child) is 1920-1900 = 20y, which is plausible.
+    But the widest gap (oldest parent vs. youngest child) is 1925-1880 = 45y.
+    Since *some* endpoint combo is plausible, no warning should fire."""
+    g1 = nx.DiGraph()
+    g2 = nx.DiGraph()
+
+    parent1 = make_person_wide(birth_start="1880-01-01", birth_end="1900-12-31")
+    child1 = make_person_wide(birth_start="1920-01-01", birth_end="1925-12-31")
+    pid1 = add_person(g1, parent1)
+    cid1 = add_person(g1, child1)
+    add_relation(g1, pid1, cid1, "parent-child")
+
+    other = make_person_wide(birth_start="1920-01-01", birth_end="1925-12-31")
+    oid = add_person(g2, other)
+
+    mapping = {cid1: oid}
+    result = score_proposal(g1, g2, mapping)
+
+    assert not any(w.check == "parent_age_gap" for w in result.warnings)
+
+
+def test_parent_child_wide_range_all_endpoints_implausible():
+    """Parent birth range spans 1905-1910; child birth range spans 1910-1915.
+    All four gaps are 0-10 years, well below 12y error threshold. Should flag error."""
+    g1 = nx.DiGraph()
+    g2 = nx.DiGraph()
+
+    parent1 = make_person_wide(birth_start="1905-01-01", birth_end="1910-12-31")
+    child1 = make_person_wide(birth_start="1910-01-01", birth_end="1915-12-31")
+    pid1 = add_person(g1, parent1)
+    cid1 = add_person(g1, child1)
+    add_relation(g1, pid1, cid1, "parent-child")
+
+    other = make_person_wide(birth_start="1910-01-01", birth_end="1915-12-31")
+    oid = add_person(g2, other)
+
+    mapping = {cid1: oid}
+    result = score_proposal(g1, g2, mapping)
+
+    assert any(w.check == "parent_age_gap" and w.severity == "error" for w in result.warnings)
+
+
+def test_parent_child_wide_range_spans_warning_threshold():
+    """Parent birth 1895-1905; child birth 1915-1925.
+    Gaps: min = 1915-1905 = 10y (error), max = 1925-1895 = 30y (plausible).
+    Since some endpoints are plausible, no warning should fire."""
+    g1 = nx.DiGraph()
+    g2 = nx.DiGraph()
+
+    parent1 = make_person_wide(birth_start="1895-01-01", birth_end="1905-12-31")
+    child1 = make_person_wide(birth_start="1915-01-01", birth_end="1925-12-31")
+    pid1 = add_person(g1, parent1)
+    cid1 = add_person(g1, child1)
+    add_relation(g1, pid1, cid1, "parent-child")
+
+    other = make_person_wide(birth_start="1915-01-01", birth_end="1925-12-31")
+    oid = add_person(g2, other)
+
+    mapping = {cid1: oid}
+    result = score_proposal(g1, g2, mapping)
+
+    assert not any(w.check == "parent_age_gap" for w in result.warnings)
+
+
+def test_spouse_wide_range_some_endpoints_plausible():
+    """Husband birth 1870-1890; wife birth 1920-1930.
+    Gaps: min = 1920-1890 = 30y (plausible), max = 1930-1870 = 60y.
+    Since some endpoints are within the plausible range, no warning should fire."""
+    g1 = nx.DiGraph()
+    g2 = nx.DiGraph()
+
+    husband1 = make_person_wide(gender="m", birth_start="1870-01-01", birth_end="1890-12-31")
+    wife1 = make_person_wide(gender="f", birth_start="1920-01-01", birth_end="1930-12-31")
+    hid1 = add_person(g1, husband1)
+    wid1 = add_person(g1, wife1)
+    add_relation(g1, hid1, wid1, "spouse")
+
+    other = make_person_wide(gender="f", birth_start="1920-01-01", birth_end="1930-12-31")
+    oid = add_person(g2, other)
+
+    mapping = {wid1: oid}
+    result = score_proposal(g1, g2, mapping)
+
+    assert not any(w.check == "spouse_age_gap" for w in result.warnings)
+
+
+def test_spouse_wide_range_all_endpoints_implausible():
+    """Husband birth 1835-1845; wife birth 1920-1930.
+    All gaps: 75-95 years, all above 70y error threshold. Should flag error."""
+    g1 = nx.DiGraph()
+    g2 = nx.DiGraph()
+
+    husband1 = make_person_wide(gender="m", birth_start="1835-01-01", birth_end="1845-12-31")
+    wife1 = make_person_wide(gender="f", birth_start="1920-01-01", birth_end="1930-12-31")
+    hid1 = add_person(g1, husband1)
+    wid1 = add_person(g1, wife1)
+    add_relation(g1, hid1, wid1, "spouse")
+
+    other = make_person_wide(gender="f", birth_start="1920-01-01", birth_end="1930-12-31")
+    oid = add_person(g2, other)
+
+    mapping = {wid1: oid}
+    result = score_proposal(g1, g2, mapping)
+
+    assert any(w.check == "spouse_age_gap" and w.severity == "error" for w in result.warnings)
+
+
+def test_spouse_wide_range_spans_warning_threshold():
+    """Husband birth 1880-1895; wife birth 1920-1930.
+    Gaps: 25-60y. Some < 50y (plausible), some > 50y. No warning should fire."""
+    g1 = nx.DiGraph()
+    g2 = nx.DiGraph()
+
+    husband1 = make_person_wide(gender="m", birth_start="1880-01-01", birth_end="1895-12-31")
+    wife1 = make_person_wide(gender="f", birth_start="1920-01-01", birth_end="1930-12-31")
+    hid1 = add_person(g1, husband1)
+    wid1 = add_person(g1, wife1)
+    add_relation(g1, hid1, wid1, "spouse")
+
+    other = make_person_wide(gender="f", birth_start="1920-01-01", birth_end="1930-12-31")
+    oid = add_person(g2, other)
+
+    mapping = {wid1: oid}
+    result = score_proposal(g1, g2, mapping)
+
+    assert not any(w.check == "spouse_age_gap" for w in result.warnings)
