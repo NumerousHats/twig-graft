@@ -45,6 +45,7 @@ def _init_session_state():
         "decisions": {},  # index -> "approved" | "rejected" | "skipped"
         "audit_log": [],
         "minimum_match_size": 5,
+        "current_review_index": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -72,6 +73,7 @@ def load_and_score(file_path, minimum_match_size):
     st.session_state.decisions = {}
     st.session_state.audit_log = []
     st.session_state.minimum_match_size = minimum_match_size
+    st.session_state.current_review_index = None
 
 
 def person_summary(person):
@@ -160,6 +162,21 @@ def reject_proposal(index):
 
 def skip_proposal(index):
     st.session_state.decisions[index] = "skipped"
+
+
+def _next_pending_index(visible_indices, after_index):
+    """Return the index of the next pending (unreviewed) proposal in visible_indices, starting the
+    search after *after_index*.  Wraps around if needed.  Returns None if nothing is pending."""
+    after_pos = visible_indices.index(after_index) if after_index in visible_indices else -1
+    for i in visible_indices[after_pos + 1:]:
+        status = st.session_state.decisions.get(i, "pending")
+        if status == "pending" and not st.session_state.proposals[i].conflict:
+            return i
+    for i in visible_indices[:after_pos + 1]:
+        status = st.session_state.decisions.get(i, "pending")
+        if status == "pending" and not st.session_state.proposals[i].conflict:
+            return i
+    return None
 
 
 def export_results(output_json_path, audit_log_path):
@@ -300,10 +317,17 @@ def main():
         return
 
     st.subheader("Review a proposal")
-    selected_index = st.selectbox("Proposal #", options=visible_indices, format_func=lambda i: (
-        "#{} - match size {} - plausibility {:.2f} - {}".format(
-            i, proposals[i].match_size, proposals[i].plausibility.score, effective_status(i, proposals[i]))
-    ))
+
+    current = st.session_state.current_review_index
+    if current not in visible_indices:
+        current = visible_indices[0]
+    select_pos = visible_indices.index(current)
+
+    selected_index = st.selectbox("Proposal #", options=visible_indices, index=select_pos,
+                                  format_func=lambda i: (
+                                      "#{} - match size {} - plausibility {:.2f} - {}".format(
+                                          i, proposals[i].match_size, proposals[i].plausibility.score,
+                                          effective_status(i, proposals[i]))))
 
     proposal = proposals[selected_index]
     graph = st.session_state.graph_model.graph
@@ -344,12 +368,18 @@ def main():
     button_cols = st.columns(3)
     if button_cols[0].button("Approve", key="approve_{}".format(selected_index)):
         approve_proposal(selected_index)
+        next_idx = _next_pending_index(visible_indices, selected_index)
+        st.session_state.current_review_index = next_idx if next_idx is not None else selected_index
         st.rerun()
     if button_cols[1].button("Reject", key="reject_{}".format(selected_index)):
         reject_proposal(selected_index)
+        next_idx = _next_pending_index(visible_indices, selected_index)
+        st.session_state.current_review_index = next_idx if next_idx is not None else selected_index
         st.rerun()
     if button_cols[2].button("Skip", key="skip_{}".format(selected_index)):
         skip_proposal(selected_index)
+        next_idx = _next_pending_index(visible_indices, selected_index)
+        st.session_state.current_review_index = next_idx if next_idx is not None else selected_index
         st.rerun()
 
 
