@@ -138,13 +138,12 @@ uv run pytest
 
 ## Status
 
-Work in progress.  The import and merge pipeline is functional.  The
+Work in progress.  Importing baptism records is functional. The merge pipeline is somewhat functional.  The
 following are incomplete or experimental:
 
 - Death record import (partially implemented)
 - Second-marriage handling
 - Mother's spouse handling
-- Priority subset ordering in McGregor (not yet implemented)
 
 ## Contact
 
