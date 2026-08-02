@@ -5,15 +5,18 @@ Run with:
     uv run streamlit run merge_review_app.py
 
 Workflow:
-    1. Point the app at a graph JSON file (e.g. dum.json) and click "Load & score proposals".
-    2. All candidate merges are generated (via birth_merge.generate_proposals), scored for
-       biological plausibility (via plausibility.score_proposal), and checked for conflicts
-       with each other (via birth_merge.detect_conflicts).
+    1. Pre-generate proposals from a graph JSON file with `generate_proposals.py`:
+           uv run python generate_proposals.py dum.json -o proposals.json
+       This is the slow step: it runs McGregor subgraph matching, scores every candidate for
+       biological plausibility (via plausibility.score_proposal), and detects conflicts.
+    2. Point the app at the proposals file and click "Load proposals".  No comparisons are
+       re-run; the app just reads the pre-generated proposals and the embedded graph.
     3. Review each proposal: side-by-side person cards for the matched pairs, an interactive
        graph of both twigs, and any plausibility warnings.
-    4. Approve, reject, or skip each proposal. Approving a proposal automatically flags any
+    4. Approve, reject, or defer each proposal. Approving a proposal automatically flags any
        other proposal that shares a node with it as conflicted.
-    5. Export: approved (non-conflicting) proposals are applied to a fresh copy of the graph,
+    5. Save decisions back to the proposals file so review progress survives app restarts.
+    6. Export: approved (non-conflicting) proposals are applied to a fresh copy of the graph,
        producing an output JSON (e.g. dum2.json) and a JSON audit log of every decision made.
 """
 
@@ -25,8 +28,8 @@ import streamlit as st
 from pyvis.network import Network
 
 import graph_model
-from birth_merge import apply_merge, detect_conflicts, generate_proposals, sanity_check
-from plausibility import score_proposal
+from birth_merge import apply_merge, sanity_check
+from proposal_io import read_proposals_file, write_decisions
 
 st.set_page_config(page_title="Twig Merge Review", layout="wide")
 
@@ -40,11 +43,10 @@ SPOUSE_EDGE_COLOR = "#999999"
 def _init_session_state():
     defaults = {
         "graph_model": None,
-        "input_file": None,
+        "proposals_file": None,
+        "graph_json": None,
         "proposals": [],
-        "decisions": {},  # index -> "approved" | "rejected" | "skipped"
-        "audit_log": [],
-        "minimum_match_size": 5,
+        "decisions": {},  # index -> "approved" | "rejected" | "deferred"
         "current_review_index": None,
     }
     for key, value in defaults.items():
@@ -52,27 +54,17 @@ def _init_session_state():
             st.session_state[key] = value
 
 
-def load_and_score(file_path, minimum_match_size):
-    with open(file_path) as f:
-        input_json = json.load(f)
+def load_proposals(file_path):
+    data = read_proposals_file(file_path)
 
-    the_graph_model = graph_model.PeopleGraph(graph_json=input_json)
+    the_graph_model = graph_model.PeopleGraph(graph_json=data["graph_json"])
     sanity_check(the_graph_model.graph)
 
-    proposals = generate_proposals(the_graph_model.graph, minimum_match_size=minimum_match_size)
-    for proposal in proposals:
-        proposal.plausibility = score_proposal(the_graph_model.graph, the_graph_model.graph,
-                                                proposal.node_mapping)
-    detect_conflicts(proposals)
-    # Sort worst-scoring (most concerning) proposals first, so reviewers see the riskiest merges up front.
-    proposals.sort(key=lambda p: p.plausibility.score)
-
     st.session_state.graph_model = the_graph_model
-    st.session_state.input_file = file_path
-    st.session_state.proposals = proposals
-    st.session_state.decisions = {}
-    st.session_state.audit_log = []
-    st.session_state.minimum_match_size = minimum_match_size
+    st.session_state.graph_json = data["graph_json"]
+    st.session_state.proposals_file = file_path
+    st.session_state.proposals = data["proposals"]
+    st.session_state.decisions = dict(data["decisions"])
     st.session_state.current_review_index = None
 
 
@@ -160,8 +152,8 @@ def reject_proposal(index):
     st.session_state.decisions[index] = "rejected"
 
 
-def skip_proposal(index):
-    st.session_state.decisions[index] = "skipped"
+def defer_proposal(index):
+    st.session_state.decisions[index] = "deferred"
 
 
 def _next_pending_index(visible_indices, after_index):
@@ -185,9 +177,7 @@ def export_results(output_json_path, audit_log_path):
 
     # Work on a fresh copy of the graph so the in-review graph is left untouched, in case the
     # reviewer wants to keep working after exporting.
-    with open(st.session_state.input_file) as f:
-        input_json = json.load(f)
-    export_graph_model = graph_model.PeopleGraph(graph_json=input_json)
+    export_graph_model = graph_model.PeopleGraph(graph_json=st.session_state.graph_json)
     export_graph = export_graph_model.graph
 
     audit_entries = []
@@ -222,9 +212,8 @@ def export_results(output_json_path, audit_log_path):
         json.dump(export_graph_model.json(), f, indent=2)
 
     audit_log = {
-        "input_file": st.session_state.input_file,
+        "input_file": st.session_state.proposals_file,
         "export_time": datetime.datetime.now().isoformat(),
-        "minimum_match_size": st.session_state.minimum_match_size,
         "decisions": audit_entries,
     }
     with open(audit_log_path, "w") as f:
@@ -241,12 +230,19 @@ def main():
 
     with st.sidebar:
         st.header("Load data")
-        file_path = st.text_input("Graph JSON path", value="dum.json")
-        minimum_match_size = st.slider("Minimum match size", min_value=3, max_value=10, value=5)
-        if st.button("Load & score proposals", type="primary"):
-            with st.spinner("Generating and scoring merge proposals..."):
-                load_and_score(file_path, minimum_match_size)
-            st.success("Loaded {} proposals.".format(len(st.session_state.proposals)))
+        file_path = st.text_input("Proposals file path", value="proposals.json")
+        if st.button("Load proposals", type="primary"):
+            try:
+                with st.spinner("Loading proposals..."):
+                    load_proposals(file_path)
+                st.success("Loaded {} proposals.".format(len(st.session_state.proposals)))
+            except Exception as exc:
+                st.error("Failed to load {}: {}".format(file_path, exc))
+
+        if st.session_state.proposals and st.session_state.proposals_file:
+            if st.button("Save decisions"):
+                write_decisions(st.session_state.proposals_file, st.session_state.decisions)
+                st.success("Saved decisions to {}.".format(st.session_state.proposals_file))
 
         st.divider()
         st.header("Filter")
@@ -254,7 +250,7 @@ def main():
         show_approved = st.checkbox("Approved", value=True)
         show_rejected = st.checkbox("Rejected", value=False)
         show_conflicted = st.checkbox("Conflicted", value=True)
-        show_skipped = st.checkbox("Skipped", value=False)
+        show_deferred = st.checkbox("Deferred", value=True)
 
         st.divider()
         st.header("Export")
@@ -275,7 +271,7 @@ def main():
     decisions = st.session_state.decisions
 
     if not proposals:
-        st.info("Use the sidebar to load a graph JSON file and generate merge proposals.")
+        st.info("Use the sidebar to load a pre-generated proposals file (see generate_proposals.py).")
         return
 
     status_filters = {
@@ -283,7 +279,7 @@ def main():
         "approved": show_approved,
         "rejected": show_rejected,
         "conflicted": show_conflicted,
-        "skipped": show_skipped,
+        "deferred": show_deferred,
     }
 
     def effective_status(i, proposal):
@@ -297,15 +293,16 @@ def main():
     num_approved = sum(1 for i, p in enumerate(proposals) if decisions.get(i) == "approved")
     num_rejected = sum(1 for i, p in enumerate(proposals) if decisions.get(i) == "rejected")
     num_conflicted = sum(1 for i, p in enumerate(proposals) if effective_status(i, p) == "conflicted")
-    num_skipped = sum(1 for i, p in enumerate(proposals) if decisions.get(i) == "skipped")
-    num_pending = len(proposals) - num_approved - num_rejected - num_conflicted - num_skipped
+    num_deferred = sum(1 for i, p in enumerate(proposals) if decisions.get(i) == "deferred")
+    num_pending = len(proposals) - num_approved - num_rejected - num_conflicted - num_deferred
 
-    cols = st.columns(5)
+    cols = st.columns(6)
     cols[0].metric("Total", len(proposals))
     cols[1].metric("Approved", num_approved)
     cols[2].metric("Rejected", num_rejected)
     cols[3].metric("Conflicted", num_conflicted)
-    cols[4].metric("Pending", num_pending)
+    cols[4].metric("Deferred", num_deferred)
+    cols[5].metric("Pending", num_pending)
 
     st.subheader("Proposals")
     table_rows = render_proposal_table(proposals, decisions)
@@ -376,8 +373,8 @@ def main():
         next_idx = _next_pending_index(visible_indices, selected_index)
         st.session_state.current_review_index = next_idx if next_idx is not None else selected_index
         st.rerun()
-    if button_cols[2].button("Skip", key="skip_{}".format(selected_index)):
-        skip_proposal(selected_index)
+    if button_cols[2].button("Defer", key="defer_{}".format(selected_index)):
+        defer_proposal(selected_index)
         next_idx = _next_pending_index(visible_indices, selected_index)
         st.session_state.current_review_index = next_idx if next_idx is not None else selected_index
         st.rerun()

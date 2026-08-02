@@ -23,6 +23,7 @@ uv run python birth_import.py
 uv run python birth_merge.py
 
 # 3'. ...or review proposed merges in a browser before applying them
+uv run python generate_proposals.py dum.json -o proposals.json
 uv run streamlit run merge_review_app.py
 
 # 4. Convert JSON to GML for visualization in Gephi
@@ -52,29 +53,49 @@ uv run python twig2gml.py dum.json > output.gml
 Merging twigs purely on McGregor match size can produce biologically
 implausible results (e.g. a parent younger than their child). The
 `merge_review_app.py` Streamlit app addresses this with a
-human-in-the-loop workflow:
+human-in-the-loop workflow.
+
+Because running McGregor matching over a large graph is slow, proposal
+generation is split out of the app into a separate, one-off step that
+writes a self-contained proposals file (embedding the graph and every
+candidate merge with its plausibility score and conflicts). The app then
+loads that file instantly, without re-running any comparisons.
+
+**Step 1 — Generate proposals (slow, run once):**
+
+```bash
+uv run python generate_proposals.py dum.json -o proposals.json
+```
+
+This runs `birth_merge.generate_proposals` to find every candidate merge
+without modifying the graph, scores each for biological plausibility via
+`plausibility.score_proposal` (parent/child age gaps, spouse age gaps,
+and Coelebs consistency — all checked at every endpoint of the
+sometimes-wide inferred date ranges, so only genuinely impossible age
+gaps are flagged), and flags proposals that conflict with one another (a
+person can only be merged once).
+
+**Step 2 — Review (fast, repeatable):**
 
 ```bash
 uv run streamlit run merge_review_app.py
 ```
 
-1. Point it at a graph JSON file (e.g. `dum.json`) and click **Load &
-   score proposals**. This generates every candidate merge (via
-   `birth_merge.generate_proposals`) without modifying the graph, scores
-   each for biological plausibility (via `plausibility.score_proposal`
-   — parent/child age gaps, spouse age gaps, and Coelebs consistency),
-   and flags proposals that conflict with one another (a person can
-   only be merged once).
+1. Point the app at the proposals file and click **Load proposals**.
 2. Review each proposal: side-by-side person cards for every matched
    pair, an interactive graph of both twigs (drawn with `pyvis`), and
    any plausibility warnings.
-3. **Approve**, **reject**, or **skip** each proposal. Approving a
+3. **Approve**, **reject**, or **defer** each proposal. Approving a
    proposal automatically flags any other proposal sharing a node with
    it as conflicted.
-4. **Apply approved & export** applies all approved, non-conflicting
+4. Click **Save decisions** to persist your decisions back into the
+   proposals file, so review progress survives app restarts.
+5. **Apply approved & export** applies all approved, non-conflicting
    merges to a fresh copy of the graph and writes both the merged graph
    JSON and a JSON audit log recording every decision made (including
    the plausibility score and warnings at the time of the decision).
+
+The proposals file format is documented in `proposal_io.py`.
 
 ## Module Map
 
@@ -89,6 +110,7 @@ uv run streamlit run merge_review_app.py
 | `mcgregor.py` | McGregor maximal common subgraph algorithm |
 | `graph_match.py` | Location-based component matching |
 | `plausibility.py` | Biological plausibility scoring for proposed merges |
+| `proposal_io.py` | JSON serialization for pre-generated merge proposals |
 
 ### Pipeline scripts
 
@@ -96,7 +118,8 @@ uv run streamlit run merge_review_app.py
 |---|---|
 | `birth_import.py` | Pipeline: CSV → JSON |
 | `birth_merge.py` | Pipeline: JSON → merged JSON (fully automatic) |
-| `merge_review_app.py` | Streamlit GUI: review and approve/reject proposed merges |
+| `generate_proposals.py` | Pipeline: JSON → proposals file (candidate merges, scored and conflict-flagged) |
+| `merge_review_app.py` | Streamlit GUI: review and approve/reject/defer pre-generated proposals |
 | `twig2gml.py` | JSON → GML converter (CLI) |
 
 ### Tests
@@ -110,6 +133,7 @@ uv run streamlit run merge_review_app.py
 | `test_graph_model.py` | PeopleGraph tests |
 | `test_merge.py` | Person/Relationship merge tests, and proposal generation/conflict/apply tests |
 | `test_plausibility.py` | Plausibility scoring tests |
+| `test_proposal_io.py` | Proposal file serialization round-trip tests |
 
 
 ## Dependencies
